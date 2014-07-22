@@ -41,6 +41,13 @@
         <jackson.version>2.4.1</jackson.version>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>clojars.org</id>
+            <url>http://clojars.org/repo</url>
+        </repository>
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>org.quartz-scheduler</groupId>
