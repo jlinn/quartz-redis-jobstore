@@ -20,7 +20,7 @@ import static junit.framework.TestCase.*;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
@@ -171,7 +171,7 @@ public class StoreTriggerTest extends BaseTest{
         Set<TriggerKey> triggerKeys = jobStore.getTriggerKeys(GroupMatcher.triggerGroupEquals("group1"));
 
         assertThat(triggerKeys, hasSize(2));
-        assertThat(triggerKeys, contains(new TriggerKey("trigger2", "group1"), new TriggerKey("trigger1", "group1")));
+        assertThat(triggerKeys, containsInAnyOrder(new TriggerKey("trigger2", "group1"), new TriggerKey("trigger1", "group1")));
     }
 
     @Test
@@ -190,7 +190,7 @@ public class StoreTriggerTest extends BaseTest{
         triggerGroupNames = jobStore.getTriggerGroupNames();
 
         assertThat(triggerGroupNames, hasSize(3));
-        assertThat(triggerGroupNames, contains("group3", "group2", "group1"));
+        assertThat(triggerGroupNames, containsInAnyOrder("group3", "group2", "group1"));
     }
 
     @Test
@@ -265,7 +265,7 @@ public class StoreTriggerTest extends BaseTest{
         Collection<String> pausedGroups = jobStore.pauseTriggers(GroupMatcher.triggerGroupEquals("group1"));
 
         assertThat(pausedGroups, hasSize(1));
-        assertThat(pausedGroups, contains("group1"));
+        assertThat(pausedGroups, containsInAnyOrder("group1"));
 
         // ensure that the triggers were actually paused
         assertEquals(Trigger.TriggerState.PAUSED, jobStore.getTriggerState(new TriggerKey("trigger1", "group1")));
@@ -314,7 +314,7 @@ public class StoreTriggerTest extends BaseTest{
         Collection<String> pausedGroups = jobStore.pauseTriggers(GroupMatcher.triggerGroupEquals("group1"));
 
         assertThat(pausedGroups, hasSize(1));
-        assertThat(pausedGroups, contains("group1"));
+        assertThat(pausedGroups, containsInAnyOrder("group1"));
 
         // ensure that the triggers were actually paused
         assertEquals(Trigger.TriggerState.PAUSED, jobStore.getTriggerState(new TriggerKey("trigger1", "group1")));
@@ -324,7 +324,7 @@ public class StoreTriggerTest extends BaseTest{
         Collection<String> resumedGroups = jobStore.resumeTriggers(GroupMatcher.triggerGroupEquals("group1"));
 
         assertThat(resumedGroups, hasSize(1));
-        assertThat(resumedGroups, contains("group1"));
+        assertThat(resumedGroups, containsInAnyOrder("group1"));
 
         // ensure that the triggers were resumed
         assertEquals(Trigger.TriggerState.NORMAL, jobStore.getTriggerState(new TriggerKey("trigger1", "group1")));
@@ -345,12 +345,12 @@ public class StoreTriggerTest extends BaseTest{
         pausedGroups.addAll(jobStore.pauseTriggers(GroupMatcher.triggerGroupEquals("group3")));
 
         assertThat(pausedGroups, hasSize(2));
-        assertThat(pausedGroups, contains("group3", "group1"));
+        assertThat(pausedGroups, containsInAnyOrder("group3", "group1"));
 
         // retrieve paused trigger groups
         Set<String> pausedTriggerGroups = jobStore.getPausedTriggerGroups();
         assertThat(pausedTriggerGroups, hasSize(2));
-        assertThat(pausedTriggerGroups, contains("group1", "group3"));
+        assertThat(pausedTriggerGroups, containsInAnyOrder("group1", "group3"));
     }
 
     @Test
@@ -438,7 +438,7 @@ public class StoreTriggerTest extends BaseTest{
             jobTriggerKeys.add(jobTrigger.getKey());
         }
 
-        assertThat(jobTriggerKeys, contains(trigger2.getKey(), newTrigger.getKey()));
+        assertThat(jobTriggerKeys, containsInAnyOrder(trigger2.getKey(), newTrigger.getKey()));
     }
 
     @Test(expected = JobPersistenceException.class)

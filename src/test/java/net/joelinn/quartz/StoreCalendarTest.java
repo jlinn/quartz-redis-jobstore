@@ -3,7 +3,10 @@ package net.joelinn.quartz;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.Test;
-import org.quartz.*;
+import org.quartz.Calendar;
+import org.quartz.JobDetail;
+import org.quartz.JobPersistenceException;
+import org.quartz.Trigger;
 import org.quartz.impl.triggers.CronTriggerImpl;
 
 import java.io.IOException;
@@ -17,7 +20,7 @@ import static junit.framework.TestCase.*;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 
@@ -110,7 +113,7 @@ public class StoreCalendarTest extends BaseTest{
         calendarNames = jobStore.getCalendarNames();
 
         assertThat(calendarNames, hasSize(2));
-        assertThat(calendarNames, contains("calendar2", "calendar1"));
+        assertThat(calendarNames, containsInAnyOrder("calendar2", "calendar1"));
     }
 
     @Test

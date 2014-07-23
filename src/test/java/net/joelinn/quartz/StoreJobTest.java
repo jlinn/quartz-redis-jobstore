@@ -10,13 +10,11 @@ import java.util.*;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertFalse;
-import static junit.framework.TestCase.assertNotNull;
-import static junit.framework.TestCase.assertTrue;
-import static junit.framework.TestCase.fail;
+import static junit.framework.TestCase.*;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 
@@ -167,7 +165,7 @@ public class StoreJobTest extends BaseTest{
         Set<JobKey> jobKeys = jobStore.getJobKeys(GroupMatcher.jobGroupEquals("group1"));
 
         assertThat(jobKeys, hasSize(2));
-        assertThat(jobKeys, contains(new JobKey("job1", "group1"), new JobKey("job2", "group1")));
+        assertThat(jobKeys, containsInAnyOrder(new JobKey("job1", "group1"), new JobKey("job2", "group1")));
     }
 
     @Test
@@ -184,7 +182,7 @@ public class StoreJobTest extends BaseTest{
         jobGroupNames = jobStore.getJobGroupNames();
 
         assertThat(jobGroupNames, hasSize(2));
-        assertThat(jobGroupNames, contains("group1", "group2"));
+        assertThat(jobGroupNames, containsInAnyOrder("group1", "group2"));
     }
 
     @Test
