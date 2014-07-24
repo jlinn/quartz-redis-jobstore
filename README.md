@@ -41,4 +41,5 @@ org.quartz.jobStore.lockTimeout = 30000
 ```
 
 ## Limitations
-Currently, the same limitations outlined in [redis-quartz's readme](https://github.com/RedisLabs/redis-quartz#limitations) apply.
+All GroupMatcher comparators have been implemented. 
+Aside from that, the same limitations outlined in [redis-quartz's readme](https://github.com/RedisLabs/redis-quartz#limitations) apply.

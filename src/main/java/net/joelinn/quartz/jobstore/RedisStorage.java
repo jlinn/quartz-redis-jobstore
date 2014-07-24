@@ -625,12 +625,31 @@ public class RedisStorage {
      * @return the set of all JobKeys which have the given group name
      */
     public Set<JobKey> getJobKeys(GroupMatcher<JobKey> matcher, Jedis jedis){
-        final String jobGroupSetKey = redisSchema.jobGroupSetKey(new JobKey("", matcher.getCompareToValue()));
         Set<JobKey> jobKeys = new HashSet<>();
-        Set<String> jobs = jedis.smembers(jobGroupSetKey);
-        if(jobs != null){
-            for (String job : jobs) {
-                jobKeys.add(redisSchema.jobKey(job));
+        if(matcher.getCompareWithOperator() == StringMatcher.StringOperatorName.EQUALS){
+            final String jobGroupSetKey = redisSchema.jobGroupSetKey(new JobKey("", matcher.getCompareToValue()));
+            final Set<String> jobs = jedis.smembers(jobGroupSetKey);
+            if(jobs != null){
+                for (final String job : jobs) {
+                    jobKeys.add(redisSchema.jobKey(job));
+                }
+            }
+        }
+        else{
+            List<Response<Set<String>>> jobGroups = new ArrayList<>();
+            Pipeline pipe = jedis.pipelined();
+            for (final String jobGroupSetKey : jedis.smembers(redisSchema.jobGroupsSet())) {
+                if(matcher.getCompareWithOperator().evaluate(redisSchema.jobGroup(jobGroupSetKey), matcher.getCompareToValue())){
+                    jobGroups.add(pipe.smembers(jobGroupSetKey));
+                }
+            }
+            pipe.sync();
+            for (Response<Set<String>> jobGroup : jobGroups) {
+                if(jobGroup.get() != null){
+                    for (final String job : jobGroup.get()) {
+                        jobKeys.add(redisSchema.jobKey(job));
+                    }
+                }
             }
         }
         return jobKeys;
@@ -643,12 +662,31 @@ public class RedisStorage {
      * @return the set of all TriggerKeys which have the given group name
      */
     public Set<TriggerKey> getTriggerKeys(GroupMatcher<TriggerKey> matcher, Jedis jedis){
-        final String triggerGroupSetKey = redisSchema.triggerGroupSetKey(new TriggerKey("", matcher.getCompareToValue()));
         Set<TriggerKey> triggerKeys = new HashSet<>();
-        Set<String> triggers = jedis.smembers(triggerGroupSetKey);
-        if(triggers != null){
-            for (String trigger : triggers) {
-                triggerKeys.add(redisSchema.triggerKey(trigger));
+        if(matcher.getCompareWithOperator() == StringMatcher.StringOperatorName.EQUALS){
+            final String triggerGroupSetKey = redisSchema.triggerGroupSetKey(new TriggerKey("", matcher.getCompareToValue()));
+            final Set<String> triggers = jedis.smembers(triggerGroupSetKey);
+            if(triggers != null){
+                for (final String trigger : triggers) {
+                    triggerKeys.add(redisSchema.triggerKey(trigger));
+                }
+            }
+        }
+        else{
+            List<Response<Set<String>>> triggerGroups = new ArrayList<>();
+            Pipeline pipe = jedis.pipelined();
+            for (final String triggerGroupSetKey : jedis.smembers(redisSchema.triggerGroupsSet())) {
+                if(matcher.getCompareWithOperator().evaluate(redisSchema.triggerGroup(triggerGroupSetKey), matcher.getCompareToValue())){
+                    triggerGroups.add(pipe.smembers(triggerGroupSetKey));
+                }
+            }
+            pipe.sync();
+            for (Response<Set<String>> triggerGroup : triggerGroups) {
+                if(triggerGroup.get() != null){
+                    for (final String trigger : triggerGroup.get()) {
+                        triggerKeys.add(redisSchema.triggerKey(trigger));
+                    }
+                }
             }
         }
         return triggerKeys;
@@ -660,7 +698,7 @@ public class RedisStorage {
      * @return the names of all of the job groups or an empty list if no job groups exist
      */
     public List<String> getJobGroupNames(Jedis jedis){
-        Set<String> groupsSet = jedis.smembers(redisSchema.jobGroupsSet());
+        final Set<String> groupsSet = jedis.smembers(redisSchema.jobGroupsSet());
         List<String> groups = new ArrayList<>(groupsSet.size());
         for (String group : groupsSet) {
             groups.add(redisSchema.jobGroup(group));
@@ -674,7 +712,7 @@ public class RedisStorage {
      * @return the names of all trigger groups or an empty list if no trigger groups exist
      */
     public List<String> getTriggerGroupNames(Jedis jedis){
-        Set<String> groupsSet = jedis.smembers(redisSchema.triggerGroupsSet());
+        final Set<String> groupsSet = jedis.smembers(redisSchema.triggerGroupsSet());
         List<String> groups = new ArrayList<>(groupsSet.size());
         for (String group : groupsSet) {
             groups.add(redisSchema.triggerGroup(group));
@@ -688,7 +726,7 @@ public class RedisStorage {
      * @return the names of all calendars or an empty list if no calendars exist
      */
     public List<String> getCalendarNames(Jedis jedis){
-        Set<String> calendarsSet = jedis.smembers(redisSchema.calendarsSet());
+        final Set<String> calendarsSet = jedis.smembers(redisSchema.calendarsSet());
         List<String> calendars = new ArrayList<>(calendarsSet.size());
         for (String group : calendarsSet) {
             calendars.add(redisSchema.calendarName(group));
@@ -759,14 +797,35 @@ public class RedisStorage {
      * @throws JobPersistenceException
      */
     public Collection<String> pauseTriggers(GroupMatcher<TriggerKey> matcher, Jedis jedis) throws JobPersistenceException {
-        final String triggerGroupSetKey = redisSchema.triggerGroupSetKey(new TriggerKey("", matcher.getCompareToValue()));
-        final long addResult = jedis.sadd(redisSchema.pausedTriggerGroupsSet(), triggerGroupSetKey);
         Set<String> pausedTriggerGroups = new HashSet<>();
-        if(addResult > 0){
-            for (String trigger : jedis.smembers(triggerGroupSetKey)) {
-                pauseTrigger(redisSchema.triggerKey(trigger), jedis);
+        if(matcher.getCompareWithOperator() == StringMatcher.StringOperatorName.EQUALS){
+            final String triggerGroupSetKey = redisSchema.triggerGroupSetKey(new TriggerKey("", matcher.getCompareToValue()));
+            final long addResult = jedis.sadd(redisSchema.pausedTriggerGroupsSet(), triggerGroupSetKey);
+            if(addResult > 0){
+                for (final String trigger : jedis.smembers(triggerGroupSetKey)) {
+                    pauseTrigger(redisSchema.triggerKey(trigger), jedis);
+                }
+                pausedTriggerGroups.add(redisSchema.triggerGroup(triggerGroupSetKey));
             }
-            pausedTriggerGroups.add(redisSchema.triggerGroup(triggerGroupSetKey));
+        }
+        else{
+            Map<String, Response<Set<String>>> triggerGroups = new HashMap<>();
+            Pipeline pipe = jedis.pipelined();
+            for (final String triggerGroupSetKey : jedis.smembers(redisSchema.triggerGroupsSet())) {
+                if(matcher.getCompareWithOperator().evaluate(redisSchema.triggerGroup(triggerGroupSetKey), matcher.getCompareToValue())){
+                    triggerGroups.put(triggerGroupSetKey, pipe.smembers(triggerGroupSetKey));
+                }
+            }
+            pipe.sync();
+            for (final Map.Entry<String, Response<Set<String>>> entry : triggerGroups.entrySet()) {
+                if(jedis.sadd(redisSchema.pausedJobGroupsSet(), entry.getKey()) > 0){
+                    // This trigger group was not paused. Pause it now.
+                    pausedTriggerGroups.add(redisSchema.triggerGroup(entry.getKey()));
+                    for (final String triggerHashKey : entry.getValue().get()) {
+                        pauseTrigger(redisSchema.triggerKey(triggerHashKey), jedis);
+                    }
+                }
+            }
         }
         return pausedTriggerGroups;
     }
@@ -791,15 +850,33 @@ public class RedisStorage {
      * @throws JobPersistenceException
      */
     public Collection<String> pauseJobs(GroupMatcher<JobKey> groupMatcher, Jedis jedis) throws JobPersistenceException {
-        if(groupMatcher.getCompareWithOperator() != StringMatcher.StringOperatorName.EQUALS){
-            throw new UnsupportedOperationException("Only the EQUALS operator is supported.");
-        }
-        final String jobGroupSetKey = redisSchema.jobGroupSetKey(new JobKey("", groupMatcher.getCompareToValue()));
         Set<String> pausedJobGroups = new HashSet<>();
-        if(jedis.sadd(redisSchema.pausedJobGroupsSet(), jobGroupSetKey) > 0){
-            pausedJobGroups.add(jobGroupSetKey);
-            for (String job : jedis.smembers(jobGroupSetKey)) {
-                pauseJob(redisSchema.jobKey(job), jedis);
+        if(groupMatcher.getCompareWithOperator() == StringMatcher.StringOperatorName.EQUALS){
+            final String jobGroupSetKey = redisSchema.jobGroupSetKey(new JobKey("", groupMatcher.getCompareToValue()));
+            if(jedis.sadd(redisSchema.pausedJobGroupsSet(), jobGroupSetKey) > 0){
+                pausedJobGroups.add(redisSchema.jobGroup(jobGroupSetKey));
+                for (String job : jedis.smembers(jobGroupSetKey)) {
+                    pauseJob(redisSchema.jobKey(job), jedis);
+                }
+            }
+        }
+        else{
+            Map<String, Response<Set<String>>> jobGroups = new HashMap<>();
+            Pipeline pipe = jedis.pipelined();
+            for (final String jobGroupSetKey : jedis.smembers(redisSchema.jobGroupsSet())) {
+                if(groupMatcher.getCompareWithOperator().evaluate(redisSchema.jobGroup(jobGroupSetKey), groupMatcher.getCompareToValue())){
+                    jobGroups.put(jobGroupSetKey, pipe.smembers(jobGroupSetKey));
+                }
+            }
+            pipe.sync();
+            for (final Map.Entry<String, Response<Set<String>>> entry : jobGroups.entrySet()) {
+                if(jedis.sadd(redisSchema.pausedJobGroupsSet(), entry.getKey()) > 0){
+                    // This job group was not already paused. Pause it now.
+                    pausedJobGroups.add(redisSchema.jobGroup(entry.getKey()));
+                    for (final String jobHashKey : entry.getValue().get()) {
+                        pauseJob(redisSchema.jobKey(jobHashKey), jedis);
+                    }
+                }
             }
         }
         return pausedJobGroups;
@@ -886,16 +963,25 @@ public class RedisStorage {
      * @return the names of trigger groups which were resumed
      */
     public Collection<String> resumeTriggers(GroupMatcher<TriggerKey> matcher, Jedis jedis) throws JobPersistenceException {
-        final String triggerGroupSetKey = redisSchema.triggerGroupSetKey(new TriggerKey("", matcher.getCompareToValue()));
         Set<String> resumedTriggerGroups = new HashSet<>();
-        Pipeline pipe = jedis.pipelined();
-        pipe.srem(redisSchema.pausedJobGroupsSet(), triggerGroupSetKey);
-        Response<Set<String>> triggerHashKeysResponse = pipe.smembers(triggerGroupSetKey);
-        pipe.sync();
-        for (String triggerHashKey : triggerHashKeysResponse.get()) {
-            OperableTrigger trigger = retrieveTrigger(redisSchema.triggerKey(triggerHashKey), jedis);
-            resumeTrigger(trigger.getKey(), jedis);
-            resumedTriggerGroups.add(trigger.getKey().getGroup());
+        if (matcher.getCompareWithOperator() == StringMatcher.StringOperatorName.EQUALS) {
+            final String triggerGroupSetKey = redisSchema.triggerGroupSetKey(new TriggerKey("", matcher.getCompareToValue()));
+            Pipeline pipe = jedis.pipelined();
+            pipe.srem(redisSchema.pausedJobGroupsSet(), triggerGroupSetKey);
+            Response<Set<String>> triggerHashKeysResponse = pipe.smembers(triggerGroupSetKey);
+            pipe.sync();
+            for (String triggerHashKey : triggerHashKeysResponse.get()) {
+                OperableTrigger trigger = retrieveTrigger(redisSchema.triggerKey(triggerHashKey), jedis);
+                resumeTrigger(trigger.getKey(), jedis);
+                resumedTriggerGroups.add(trigger.getKey().getGroup());
+            }
+        }
+        else {
+            for (final String triggerGroupSetKey : jedis.smembers(redisSchema.triggerGroupsSet())) {
+                if(matcher.getCompareWithOperator().evaluate(redisSchema.triggerGroup(triggerGroupSetKey), matcher.getCompareToValue())){
+                    resumedTriggerGroups.addAll(resumeTriggers(GroupMatcher.triggerGroupEquals(redisSchema.triggerGroup(triggerGroupSetKey)), jedis));
+                }
+            }
         }
         return resumedTriggerGroups;
     }
@@ -932,20 +1018,26 @@ public class RedisStorage {
      * @return the set of job groups which were matched and resumed
      */
     public Collection<String> resumeJobs(GroupMatcher<JobKey> matcher, Jedis jedis) throws JobPersistenceException {
-        if(matcher.getCompareWithOperator() != StringMatcher.StringOperatorName.EQUALS){
-            throw new UnsupportedOperationException("Only EQUALS operator is supported.");
-        }
-        final String jobGroupSetKey = redisSchema.jobGroupSetKey(new JobKey("", matcher.getCompareToValue()));
         Set<String> resumedJobGroups = new HashSet<>();
-        Pipeline pipe = jedis.pipelined();
-        Response<Long> unpauseResponse = pipe.srem(redisSchema.pausedJobGroupsSet(), jobGroupSetKey);
-        Response<Set<String>> jobsResponse = pipe.smembers(jobGroupSetKey);
-        pipe.sync();
-        if(unpauseResponse.get() > 0){
-            resumedJobGroups.add(redisSchema.jobGroup(jobGroupSetKey));
+        if (matcher.getCompareWithOperator() == StringMatcher.StringOperatorName.EQUALS) {
+            final String jobGroupSetKey = redisSchema.jobGroupSetKey(new JobKey("", matcher.getCompareToValue()));
+            Pipeline pipe = jedis.pipelined();
+            Response<Long> unpauseResponse = pipe.srem(redisSchema.pausedJobGroupsSet(), jobGroupSetKey);
+            Response<Set<String>> jobsResponse = pipe.smembers(jobGroupSetKey);
+            pipe.sync();
+            if(unpauseResponse.get() > 0){
+                resumedJobGroups.add(redisSchema.jobGroup(jobGroupSetKey));
+            }
+            for (String job : jobsResponse.get()) {
+                resumeJob(redisSchema.jobKey(job), jedis);
+            }
         }
-        for (String job : jobsResponse.get()) {
-            resumeJob(redisSchema.jobKey(job), jedis);
+        else{
+            for (final String jobGroupSetKey : jedis.smembers(redisSchema.jobGroupsSet())) {
+                if(matcher.getCompareWithOperator().evaluate(redisSchema.jobGroup(jobGroupSetKey), matcher.getCompareToValue())){
+                    resumedJobGroups.addAll(resumeJobs(GroupMatcher.jobGroupEquals(redisSchema.jobGroup(jobGroupSetKey)), jedis));
+                }
+            }
         }
         return resumedJobGroups;
     }

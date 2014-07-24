@@ -8,7 +8,6 @@ import net.joelinn.quartz.jobstore.mixin.TriggerMixin;
 import org.quartz.Calendar;
 import org.quartz.*;
 import org.quartz.impl.matchers.GroupMatcher;
-import org.quartz.impl.matchers.StringMatcher;
 import org.quartz.spi.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -698,24 +697,22 @@ public class RedisJobStore implements JobStore {
      */
     @Override
     public Set<JobKey> getJobKeys(GroupMatcher<JobKey> matcher) throws JobPersistenceException {
-        if(matcher.getCompareWithOperator() != StringMatcher.StringOperatorName.EQUALS){
-            throw new UnsupportedOperationException("Only the EQUALS operator is supported.");
-        }
         Jedis jedis = jedisPool.getResource();
         try{
-            Set<JobKey> jobKeys = storage.getJobKeys(matcher, jedis);
-            jedisPool.returnResource(jedis);
-            return jobKeys;
+            storage.lock(jedis);
+            return storage.getJobKeys(matcher, jedis);
         }
         catch (JedisConnectionException e){
             logger.error("Redis connection error.", e);
-            jedisPool.returnBrokenResource(jedis);
             throw new JobPersistenceException(e.getMessage(), e);
         }
         catch (Exception e){
             logger.error("Could not retrieve JobKeys.", e);
-            jedisPool.returnResource(jedis);
             throw new JobPersistenceException(e.getMessage(), e);
+        }
+        finally {
+            storage.unlock(jedis);
+            jedisPool.returnResource(jedis);
         }
     }
 
@@ -728,13 +725,10 @@ public class RedisJobStore implements JobStore {
      * zero-length array (not <code>null</code>).
      * </p>
      *
-     * @param matcher only EQUALS operator is supported
+     * @param matcher the matcher with which to compare trigger groups
      */
     @Override
     public Set<TriggerKey> getTriggerKeys(GroupMatcher<TriggerKey> matcher) throws JobPersistenceException {
-        if(matcher.getCompareWithOperator() != StringMatcher.StringOperatorName.EQUALS){
-            throw new UnsupportedOperationException("Only the EQUALS operator is supported.");
-        }
         Jedis jedis = jedisPool.getResource();
         try{
             Set<TriggerKey> triggerKeys = storage.getTriggerKeys(matcher, jedis);

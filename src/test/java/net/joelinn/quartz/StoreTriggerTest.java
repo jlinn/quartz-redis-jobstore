@@ -170,6 +170,23 @@ public class StoreTriggerTest extends BaseTest{
 
         assertThat(triggerKeys, hasSize(2));
         assertThat(triggerKeys, containsInAnyOrder(new TriggerKey("trigger2", "group1"), new TriggerKey("trigger1", "group1")));
+
+        jobStore.storeTrigger(getCronTrigger("trigger4", "triggergroup1", job.getKey()), false);
+
+        triggerKeys = jobStore.getTriggerKeys(GroupMatcher.triggerGroupContains("group"));
+
+        assertThat(triggerKeys, hasSize(5));
+
+        triggerKeys = jobStore.getTriggerKeys(GroupMatcher.triggerGroupEndsWith("1"));
+
+        assertThat(triggerKeys, hasSize(3));
+        assertThat(triggerKeys, containsInAnyOrder(new TriggerKey("trigger2", "group1"),
+                new TriggerKey("trigger1", "group1"), new TriggerKey("trigger4", "triggergroup1")));
+
+        triggerKeys = jobStore.getTriggerKeys(GroupMatcher.triggerGroupStartsWith("trig"));
+
+        assertThat(triggerKeys, hasSize(1));
+        assertThat(triggerKeys, containsInAnyOrder(new TriggerKey("trigger4", "triggergroup1")));
     }
 
     @Test
@@ -251,7 +268,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testPauseTriggers() throws JobPersistenceException {
+    public void testPauseTriggersEquals() throws JobPersistenceException {
         // store triggers
         JobDetail job = getJobDetail();
         jobStore.storeTrigger(getCronTrigger("trigger1", "group1", job.getKey()), false);
@@ -268,6 +285,42 @@ public class StoreTriggerTest extends BaseTest{
         // ensure that the triggers were actually paused
         assertEquals(Trigger.TriggerState.PAUSED, jobStore.getTriggerState(new TriggerKey("trigger1", "group1")));
         assertEquals(Trigger.TriggerState.PAUSED, jobStore.getTriggerState(new TriggerKey("trigger2", "group1")));
+    }
+
+    @Test
+    public void testPauseTriggersStartsWith() throws JobPersistenceException {
+        JobDetail job = getJobDetail();
+        CronTriggerImpl trigger1 = getCronTrigger("trigger1", "group1", job.getKey());
+        CronTriggerImpl trigger2 = getCronTrigger("trigger1", "group2", job.getKey());
+        CronTriggerImpl trigger3 = getCronTrigger("trigger1", "foogroup1", job.getKey());
+        storeJobAndTriggers(job, trigger1, trigger2, trigger3);
+
+        Collection<String> pausedTriggerGroups = jobStore.pauseTriggers(GroupMatcher.triggerGroupStartsWith("group"));
+
+        assertThat(pausedTriggerGroups, hasSize(2));
+        assertThat(pausedTriggerGroups, containsInAnyOrder("group1", "group2"));
+
+        assertEquals(Trigger.TriggerState.PAUSED, jobStore.getTriggerState(trigger1.getKey()));
+        assertEquals(Trigger.TriggerState.PAUSED, jobStore.getTriggerState(trigger2.getKey()));
+        assertEquals(Trigger.TriggerState.NORMAL, jobStore.getTriggerState(trigger3.getKey()));
+    }
+
+    @Test
+    public void testPauseTriggersEndsWith() throws JobPersistenceException {
+        JobDetail job = getJobDetail();
+        CronTriggerImpl trigger1 = getCronTrigger("trigger1", "group1", job.getKey());
+        CronTriggerImpl trigger2 = getCronTrigger("trigger1", "group2", job.getKey());
+        CronTriggerImpl trigger3 = getCronTrigger("trigger1", "foogroup1", job.getKey());
+        storeJobAndTriggers(job, trigger1, trigger2, trigger3);
+
+        Collection<String> pausedGroups = jobStore.pauseTriggers(GroupMatcher.triggerGroupEndsWith("oup1"));
+
+        assertThat(pausedGroups, hasSize(2));
+        assertThat(pausedGroups, containsInAnyOrder("group1", "foogroup1"));
+
+        assertEquals(Trigger.TriggerState.PAUSED, jobStore.getTriggerState(trigger1.getKey()));
+        assertEquals(Trigger.TriggerState.NORMAL, jobStore.getTriggerState(trigger2.getKey()));
+        assertEquals(Trigger.TriggerState.PAUSED, jobStore.getTriggerState(trigger3.getKey()));
     }
 
     @Test
@@ -295,18 +348,14 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testResumeTriggers() throws JobPersistenceException {
+    public void testResumeTriggersEquals() throws JobPersistenceException {
         // store triggers and job
         JobDetail job = getJobDetail();
-        jobStore.storeJob(job, false);
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "group1", job.getKey());
-        trigger1.computeFirstFireTime(new WeeklyCalendar());
-        jobStore.storeTrigger(trigger1, false);
         CronTriggerImpl trigger2 = getCronTrigger("trigger2", "group1", job.getKey());
-        trigger2.computeFirstFireTime(new WeeklyCalendar());
-        jobStore.storeTrigger(trigger2, false);
-        jobStore.storeTrigger(getCronTrigger("trigger3", "group2", job.getKey()), false);
-        jobStore.storeTrigger(getCronTrigger("trigger4", "group3", job.getKey()), false);
+        CronTriggerImpl trigger3 = getCronTrigger("trigger3", "group2", job.getKey());
+        CronTriggerImpl trigger4 = getCronTrigger("trigger4", "group3", job.getKey());
+        storeJobAndTriggers(job, trigger1, trigger2, trigger3, trigger4);
 
         // pause triggers
         Collection<String> pausedGroups = jobStore.pauseTriggers(GroupMatcher.triggerGroupEquals("group1"));
@@ -327,6 +376,62 @@ public class StoreTriggerTest extends BaseTest{
         // ensure that the triggers were resumed
         assertEquals(Trigger.TriggerState.NORMAL, jobStore.getTriggerState(new TriggerKey("trigger1", "group1")));
         assertEquals(Trigger.TriggerState.NORMAL, jobStore.getTriggerState(new TriggerKey("trigger2", "group1")));
+    }
+
+    @Test
+    public void testResumeTriggersEndsWith() throws JobPersistenceException {
+        JobDetail job = getJobDetail();
+        CronTriggerImpl trigger1 = getCronTrigger("trigger1", "group1", job.getKey());
+        CronTriggerImpl trigger2 = getCronTrigger("trigger2", "group1", job.getKey());
+        CronTriggerImpl trigger3 = getCronTrigger("trigger3", "group2", job.getKey());
+        CronTriggerImpl trigger4 = getCronTrigger("trigger4", "group3", job.getKey());
+        storeJobAndTriggers(job, trigger1, trigger2, trigger3, trigger4);
+
+        Collection<String> pausedGroups = jobStore.pauseTriggers(GroupMatcher.triggerGroupEndsWith("1"));
+
+        assertThat(pausedGroups, hasSize(1));
+        assertThat(pausedGroups, containsInAnyOrder("group1"));
+
+        // ensure that the triggers were actually paused
+        assertEquals(Trigger.TriggerState.PAUSED, jobStore.getTriggerState(trigger1.getKey()));
+        assertEquals(Trigger.TriggerState.PAUSED, jobStore.getTriggerState(trigger2.getKey()));
+
+        // resume triggers
+        Collection<String> resumedGroups = jobStore.resumeTriggers(GroupMatcher.triggerGroupEndsWith("1"));
+
+        assertThat(resumedGroups, hasSize(1));
+        assertThat(resumedGroups, containsInAnyOrder("group1"));
+
+        // ensure that the triggers were actually resumed
+        assertEquals(Trigger.TriggerState.NORMAL, jobStore.getTriggerState(trigger1.getKey()));
+        assertEquals(Trigger.TriggerState.NORMAL, jobStore.getTriggerState(trigger2.getKey()));
+    }
+
+    @Test
+    public void testResumeTriggersStartsWith() throws JobPersistenceException {
+        JobDetail job = getJobDetail();
+        CronTriggerImpl trigger1 = getCronTrigger("trigger1", "mygroup1", job.getKey());
+        CronTriggerImpl trigger2 = getCronTrigger("trigger2", "group1", job.getKey());
+        CronTriggerImpl trigger3 = getCronTrigger("trigger3", "group2", job.getKey());
+        CronTriggerImpl trigger4 = getCronTrigger("trigger4", "group3", job.getKey());
+        storeJobAndTriggers(job, trigger1, trigger2, trigger3, trigger4);
+
+        Collection<String> pausedGroups = jobStore.pauseTriggers(GroupMatcher.triggerGroupStartsWith("my"));
+
+        assertThat(pausedGroups, hasSize(1));
+        assertThat(pausedGroups, containsInAnyOrder("mygroup1"));
+
+        // ensure that the triggers were actually paused
+        assertEquals(Trigger.TriggerState.PAUSED, jobStore.getTriggerState(trigger1.getKey()));
+
+        // resume triggers
+        Collection<String> resumedGroups = jobStore.resumeTriggers(GroupMatcher.triggerGroupStartsWith("my"));
+
+        assertThat(resumedGroups, hasSize(1));
+        assertThat(resumedGroups, containsInAnyOrder("mygroup1"));
+
+        // ensure that the triggers were actually resumed
+        assertEquals(Trigger.TriggerState.NORMAL, jobStore.getTriggerState(trigger1.getKey()));
     }
 
     @Test
