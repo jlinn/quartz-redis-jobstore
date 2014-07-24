@@ -8,12 +8,8 @@ import org.quartz.JobPersistenceException;
 import org.quartz.Trigger;
 import org.quartz.impl.triggers.CronTriggerImpl;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
 import static junit.framework.TestCase.assertEquals;
+import static junit.framework.TestCase.assertFalse;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -36,12 +32,7 @@ public class TriggeredJobCompleteTest extends BaseTest{
         job = getJobDetail("job1", "jobGroup1");
         trigger1 = getCronTrigger("trigger1", "triggerGroup1", job.getKey());
         trigger2 = getCronTrigger("trigger2", "triggerGroup1", job.getKey());
-        Set<Trigger> triggersSet = new HashSet<>();
-        triggersSet.add(trigger1);
-        triggersSet.add(trigger2);
-        Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = new HashMap<>();
-        jobsAndTriggers.put(job, triggersSet);
-        jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
+        storeJobAndTriggers(job, trigger1, trigger2);
     }
 
     @Test
@@ -112,15 +103,29 @@ public class TriggeredJobCompleteTest extends BaseTest{
                 .build();
         CronTriggerImpl triggerPersist1 = getCronTrigger("triggerPersist1", "triggerPersistGroup1", jobPersist.getKey());
         CronTriggerImpl triggerPersist2 = getCronTrigger("triggerPersist2", "triggerPersistGroup1", jobPersist.getKey());
-        Set<Trigger> triggersSet = new HashSet<>();
-        triggersSet.add(triggerPersist1);
-        triggersSet.add(triggerPersist2);
-        Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = new HashMap<>();
-        jobsAndTriggers.put(jobPersist, triggersSet);
-        jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
+        storeJobAndTriggers(jobPersist, triggerPersist1, triggerPersist1);
 
         jobStore.triggeredJobComplete(triggerPersist1, jobPersist, Trigger.CompletedExecutionInstruction.SET_TRIGGER_COMPLETE);
 
         assertEquals(Trigger.TriggerState.COMPLETE, jobStore.getTriggerState(triggerPersist1.getKey()));
+    }
+
+    @Test
+    public void testTriggeredJobCompleteNonConcurrent() throws JobPersistenceException {
+        JobDetail job = JobBuilder.newJob(TestJobNonConcurrent.class)
+                .withIdentity("testJobNonConcurrent1", "jobGroupNonConcurrent1")
+                .usingJobData("timeout", 42)
+                .withDescription("I am describing a job!")
+                .build();
+        CronTriggerImpl trigger1 = getCronTrigger("triggerNonConcurrent1", "triggerNonConcurrentGroup1", job.getKey());
+        CronTriggerImpl trigger2 = getCronTrigger("triggerNonConcurrent2", "triggerNonConcurrentGroup1", job.getKey());
+        storeJobAndTriggers(job, trigger1, trigger2);
+
+        jobStore.triggeredJobComplete(trigger1, job, Trigger.CompletedExecutionInstruction.SET_TRIGGER_COMPLETE);
+
+        assertEquals(Trigger.TriggerState.COMPLETE, jobStore.getTriggerState(trigger1.getKey()));
+
+        final String jobHashKey = schema.jobHashKey(job.getKey());
+        assertFalse(jedis.sismember(schema.blockedJobsSet(), jobHashKey));
     }
 }

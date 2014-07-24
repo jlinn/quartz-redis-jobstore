@@ -5,6 +5,7 @@ import net.joelinn.quartz.jobstore.RedisJobStoreSchema;
 import org.junit.After;
 import org.junit.Before;
 import org.quartz.*;
+import org.quartz.Calendar;
 import org.quartz.impl.calendar.WeeklyCalendar;
 import org.quartz.impl.triggers.CronTriggerImpl;
 import org.quartz.spi.SchedulerSignaler;
@@ -14,10 +15,7 @@ import redis.clients.jedis.JedisPoolConfig;
 import redis.embedded.RedisServer;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static junit.framework.TestCase.fail;
 import static org.mockito.Mockito.mock;
@@ -146,5 +144,13 @@ public abstract class BaseTest {
             }
         }
         return jobsAndTriggers;
+    }
+
+    protected void storeJobAndTriggers(JobDetail job, Trigger... triggers) throws JobPersistenceException {
+        Set<Trigger> triggersSet = new HashSet<>(triggers.length);
+        Collections.addAll(triggersSet, triggers);
+        Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = new HashMap<>();
+        jobsAndTriggers.put(job, triggersSet);
+        jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
     }
 }

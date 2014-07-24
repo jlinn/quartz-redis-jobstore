@@ -112,7 +112,7 @@ public class RedisJobStoreSchema {
      * @param jobKey the job key for which to get a trigger set key
      * @return the key associated with the set of triggers for the given {@link org.quartz.JobKey}
      */
-    public String jobTriggerSetKey(final JobKey jobKey){
+    public String jobTriggersSetKey(final JobKey jobKey){
         return addPrefix("job_triggers" + delimiter + jobKey.getGroup() + delimiter + jobKey.getName());
     }
 

@@ -2,13 +2,13 @@ package net.joelinn.quartz;
 
 import net.joelinn.quartz.jobstore.RedisJobStore;
 import org.junit.Test;
-import org.quartz.JobDetail;
-import org.quartz.Scheduler;
-import org.quartz.SchedulerException;
+import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.impl.triggers.CronTriggerImpl;
 
+import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 import static junit.framework.TestCase.assertEquals;
 import static org.hamcrest.CoreMatchers.not;
@@ -55,5 +55,25 @@ public class RedisJobStoreTest extends BaseTest{
 
         assertThat(jobStore.retrieveJob(job.getKey()), nullValue());
         assertThat(jobStore.retrieveTrigger(trigger.getKey()), nullValue());
+    }
+
+    @Test
+    public void testClearAllSchedulingData() throws JobPersistenceException {
+        // create and store some jobs, triggers, and calendars
+        Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = getJobsAndTriggers(2, 2, 2, 2);
+        jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
+
+        // ensure that the jobs, triggers, and calendars were stored
+        assertEquals(2, (long) jedis.scard(schema.jobGroupsSet()));
+        assertEquals(4, (long) jedis.scard(schema.jobsSet()));
+        assertEquals(8, (long) jedis.scard(schema.triggerGroupsSet()));
+        assertEquals(16, (long) jedis.scard(schema.triggersSet()));
+
+        jobStore.clearAllSchedulingData();
+
+        assertEquals(0, (long) jedis.scard(schema.jobGroupsSet()));
+        assertEquals(0, (long) jedis.scard(schema.jobsSet()));
+        assertEquals(0, (long) jedis.scard(schema.triggerGroupsSet()));
+        assertEquals(0, (long) jedis.scard(schema.triggersSet()));
     }
 }

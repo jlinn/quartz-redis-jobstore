@@ -6,14 +6,12 @@ import org.junit.Test;
 import org.quartz.Calendar;
 import org.quartz.JobDetail;
 import org.quartz.JobPersistenceException;
-import org.quartz.Trigger;
 import org.quartz.impl.triggers.CronTriggerImpl;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static junit.framework.Assert.assertFalse;
 import static junit.framework.TestCase.*;
@@ -136,25 +134,5 @@ public class StoreCalendarTest extends BaseTest{
         jobStore.storeTrigger(trigger1, false);
 
         jobStore.removeCalendar(trigger1.getCalendarName());
-    }
-
-    @Test
-    public void testClearAllSchedulingData() throws JobPersistenceException {
-        // create and store some jobs, triggers, and calendars
-        Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = getJobsAndTriggers(2, 2, 2, 2);
-        jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
-
-        // ensure that the jobs, triggers, and calendars were stored
-        assertEquals(2, (long) jedis.scard(schema.jobGroupsSet()));
-        assertEquals(4, (long) jedis.scard(schema.jobsSet()));
-        assertEquals(8, (long) jedis.scard(schema.triggerGroupsSet()));
-        assertEquals(16, (long) jedis.scard(schema.triggersSet()));
-
-        jobStore.clearAllSchedulingData();
-
-        assertEquals(0, (long) jedis.scard(schema.jobGroupsSet()));
-        assertEquals(0, (long) jedis.scard(schema.jobsSet()));
-        assertEquals(0, (long) jedis.scard(schema.triggerGroupsSet()));
-        assertEquals(0, (long) jedis.scard(schema.triggersSet()));
     }
 }

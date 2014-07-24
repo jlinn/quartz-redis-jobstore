@@ -52,10 +52,8 @@ public class StoreTriggerTest extends BaseTest{
         assertTrue("The trigger hash key is not a member of the triggers set.", jedis.sismember(schema.triggersSet(), triggerHashKey));
         assertTrue("The trigger group set key is not a member of the trigger group set.", jedis.sismember(schema.triggerGroupsSet(), schema.triggerGroupSetKey(trigger.getKey())));
         assertTrue(jedis.sismember(schema.triggerGroupSetKey(trigger.getKey()), triggerHashKey));
-        assertTrue(jedis.sismember(schema.jobTriggerSetKey(trigger.getJobKey()), triggerHashKey));
+        assertTrue(jedis.sismember(schema.jobTriggersSetKey(trigger.getJobKey()), triggerHashKey));
     }
-
-    //TODO: test storing trigger with calendar
 
     @Test(expected = JobPersistenceException.class)
     public void testStoreTriggerNoReplace() throws JobPersistenceException {
@@ -417,11 +415,9 @@ public class StoreTriggerTest extends BaseTest{
 
         // store triggers and job
         JobDetail job = getJobDetail();
-        jobStore.storeJob(job, false);
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "group1", job.getKey());
-        jobStore.storeTrigger(trigger1, false);
         CronTriggerImpl trigger2 = getCronTrigger("trigger2", "group1", job.getKey());
-        jobStore.storeTrigger(trigger2, false);
+        storeJobAndTriggers(job, trigger1, trigger2);
 
         CronTriggerImpl newTrigger = getCronTrigger("newTrigger", "group1", job.getKey());
 

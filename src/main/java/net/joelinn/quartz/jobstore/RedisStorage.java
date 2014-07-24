@@ -32,6 +32,11 @@ public class RedisStorage {
     protected static final String CALENDAR_CLASS = "calendar_class";
     protected static final String CALENDAR_JSON = "calendar_json";
 
+    /**
+     * The name of the trigger hash property which stores the trigger's next fire time
+     */
+    protected static final String TRIGGER_NEXT_FIRE_TIME = "nextFireTime";
+
     protected final RedisJobStoreSchema redisSchema;
 
     protected final ObjectMapper mapper;
@@ -41,7 +46,6 @@ public class RedisStorage {
     protected final String schedulerInstanceId;
 
     protected final int lockTimeout;
-
 
     protected final int TRIGGER_LOCK_TIMEOUT = 10 * 60 * 1000;  // 10 minutes in milliseconds
 
@@ -75,6 +79,10 @@ public class RedisStorage {
         return lockAcquired;
     }
 
+    /**
+     * Attempt to acquire lock. If lock cannot be acquired, wait until lock is successfully acquired.
+     * @param jedis a thread-safe Redis connection
+     */
     public void waitForLock(Jedis jedis){
         while(!lock(jedis)){
             try {
@@ -165,10 +173,12 @@ public class RedisStorage {
      * @param jobDataMap the job data map to be converted
      * @return a map with string keys and values
      */
-    protected Map<String, String> getStringDataMap(JobDataMap jobDataMap){
+    protected Map<String, String> getStringDataMap(final JobDataMap jobDataMap){
         Map<String, String> stringMap = new HashMap<>();
-        for (String key : jobDataMap.keySet()) {
-            stringMap.put(key, jobDataMap.get(key).toString());
+        for (Map.Entry<String, Object> entry : jobDataMap.entrySet()) {
+            if(entry.getValue() != null){
+                stringMap.put(entry.getKey(), entry.getValue().toString());
+            }
         }
         return stringMap;
     }
@@ -213,7 +223,7 @@ public class RedisStorage {
         final String jobHashKey = redisSchema.jobHashKey(jobKey);
         final String jobDataMapHashKey = redisSchema.jobDataMapHashKey(jobKey);
         final String jobGroupSetKey = redisSchema.jobGroupSetKey(jobKey);
-        final String jobTriggerSetKey = redisSchema.jobTriggerSetKey(jobKey);
+        final String jobTriggerSetKey = redisSchema.jobTriggersSetKey(jobKey);
 
         Pipeline pipe = jedis.pipelined();
         // remove the job and any associated data
@@ -265,7 +275,7 @@ public class RedisStorage {
     public void storeTrigger(OperableTrigger trigger, boolean replaceExisting, Jedis jedis) throws JobPersistenceException {
         final String triggerHashKey = redisSchema.triggerHashKey(trigger.getKey());
         final String triggerGroupSetKey = redisSchema.triggerGroupSetKey(trigger.getKey());
-        final String jobTriggerSetKey = redisSchema.jobTriggerSetKey(trigger.getJobKey());
+        final String jobTriggerSetKey = redisSchema.jobTriggersSetKey(trigger.getJobKey());
 
         if(!(trigger instanceof SimpleTrigger) && !(trigger instanceof CronTrigger)){
             throw new UnsupportedOperationException("Only SimpleTrigger and CronTrigger are supported.");
@@ -275,8 +285,7 @@ public class RedisStorage {
             throw new ObjectAlreadyExistsException(trigger);
         }
 
-        Map<String, String> triggerMap = mapper.convertValue(trigger, new TypeReference<HashMap<String, String>>() {
-        });
+        Map<String, String> triggerMap = mapper.convertValue(trigger, new TypeReference<HashMap<String, String>>() {});
         triggerMap.put(TRIGGER_CLASS, trigger.getClass().getName());
 
         Pipeline pipe = jedis.pipelined();
@@ -295,8 +304,12 @@ public class RedisStorage {
             // We're overwriting a previously stored instance of this trigger, so clear any existing trigger state.
             unsetTriggerState(triggerHashKey, jedis);
         }
-        if(jedis.sismember(redisSchema.pausedTriggerGroupsSet(), triggerGroupSetKey)
-                || jedis.sismember(redisSchema.pausedJobGroupsSet(), redisSchema.jobGroupSetKey(trigger.getJobKey()))){
+
+        pipe = jedis.pipelined();
+        Response<Boolean> triggerPausedResponse = pipe.sismember(redisSchema.pausedTriggerGroupsSet(), triggerGroupSetKey);
+        Response<Boolean> jobPausedResponse = pipe.sismember(redisSchema.pausedJobGroupsSet(), redisSchema.jobGroupSetKey(trigger.getJobKey()));
+        pipe.sync();
+        if(triggerPausedResponse.get() || jobPausedResponse.get()){
             final long nextFireTime = trigger.getNextFireTime() != null ? trigger.getNextFireTime().getTime() : -1;
             final String jobHashKey = redisSchema.jobHashKey(trigger.getJobKey());
             if(jedis.sismember(redisSchema.blockedJobsSet(), jobHashKey)){
@@ -328,7 +341,7 @@ public class RedisStorage {
         OperableTrigger trigger = retrieveTrigger(triggerKey, jedis);
 
         final String jobHashKey = redisSchema.jobHashKey(trigger.getJobKey());
-        final String jobTriggerSetKey = redisSchema.jobTriggerSetKey(trigger.getJobKey());
+        final String jobTriggerSetKey = redisSchema.jobTriggersSetKey(trigger.getJobKey());
 
         Pipeline pipe = jedis.pipelined();
         // remove the trigger from the set of all triggers
@@ -418,7 +431,7 @@ public class RedisStorage {
      * @return a list of triggers associated with the given job
      */
     public List<OperableTrigger> getTriggersForJob(JobKey jobKey, Jedis jedis) throws JobPersistenceException {
-        final String jobTriggerSetKey = redisSchema.jobTriggerSetKey(jobKey);
+        final String jobTriggerSetKey = redisSchema.jobTriggersSetKey(jobKey);
         final Set<String> triggerHashKeys = jedis.smembers(jobTriggerSetKey);
         List<OperableTrigger> triggers = new ArrayList<>();
         for (String triggerHashKey : triggerHashKeys) {
@@ -490,7 +503,16 @@ public class RedisStorage {
         return jedis.exists(redisSchema.triggerHashKey(triggerKey));
     }
 
-    public void storeCalendar(String name, Calendar calendar, boolean replaceExisting, boolean updateTriggers, Jedis jedis) throws ObjectAlreadyExistsException, JobPersistenceException{
+    /**
+     * Store a {@link org.quartz.Calendar}
+     * @param name the name of the calendar
+     * @param calendar the calendar object to be stored
+     * @param replaceExisting if true, any existing calendar with the same name will be overwritten
+     * @param updateTriggers if true, any existing triggers associated with the calendar will be updated
+     * @param jedis a thread-safe Redis connection
+     * @throws JobPersistenceException
+     */
+    public void storeCalendar(String name, Calendar calendar, boolean replaceExisting, boolean updateTriggers, Jedis jedis) throws JobPersistenceException{
         final String calendarHashKey = redisSchema.calendarHashKey(name);
         if(!replaceExisting && jedis.exists(calendarHashKey)){
             throw new ObjectAlreadyExistsException(String.format("Calendar with key %s already exists.", calendarHashKey));
@@ -707,7 +729,7 @@ public class RedisStorage {
         Pipeline pipe = jedis.pipelined();
         Response<Boolean> exists = pipe.exists(triggerHashKey);
         Response<Double> completedScore = pipe.zscore(redisSchema.triggerStateKey(RedisTriggerState.COMPLETED), triggerHashKey);
-        Response<String> nextFireTimeResponse = pipe.hget(triggerHashKey, "nextFireTime");
+        Response<String> nextFireTimeResponse = pipe.hget(triggerHashKey, TRIGGER_NEXT_FIRE_TIME);
         Response<Double> blockedScore = pipe.zscore(redisSchema.triggerStateKey(RedisTriggerState.BLOCKED), triggerHashKey);
         pipe.sync();
 
@@ -738,7 +760,7 @@ public class RedisStorage {
      */
     public Collection<String> pauseTriggers(GroupMatcher<TriggerKey> matcher, Jedis jedis) throws JobPersistenceException {
         final String triggerGroupSetKey = redisSchema.triggerGroupSetKey(new TriggerKey("", matcher.getCompareToValue()));
-        long addResult = jedis.sadd(redisSchema.pausedTriggerGroupsSet(), triggerGroupSetKey);
+        final long addResult = jedis.sadd(redisSchema.pausedTriggerGroupsSet(), triggerGroupSetKey);
         Set<String> pausedTriggerGroups = new HashSet<>();
         if(addResult > 0){
             for (String trigger : jedis.smembers(triggerGroupSetKey)) {
@@ -819,6 +841,14 @@ public class RedisStorage {
         applyMisfire(trigger, jedis);
     }
 
+    /**
+     * Determine whether or not the given trigger has misfired.
+     * If so, notify the {@link org.quartz.spi.SchedulerSignaler} and update the trigger.
+     * @param trigger the trigger to check for misfire
+     * @param jedis a thread-safe Redis connection
+     * @return false if the trigger has misfired; true otherwise
+     * @throws JobPersistenceException
+     */
     protected boolean applyMisfire(OperableTrigger trigger, Jedis jedis) throws JobPersistenceException {
         long misfireTime = System.currentTimeMillis();
         if(misfireThreshold > 0){
@@ -838,6 +868,7 @@ public class RedisStorage {
 
         trigger.updateAfterMisfire(calendar);
 
+        storeTrigger(trigger, true, jedis);
         if(trigger.getNextFireTime() == null){
             setTriggerState(RedisTriggerState.COMPLETED, (double) System.currentTimeMillis(), redisSchema.triggerHashKey(trigger.getKey()), jedis);
             signaler.notifySchedulerListenersFinalized(trigger);
@@ -872,7 +903,7 @@ public class RedisStorage {
     /**
      * Retrieve all currently paused trigger groups
      * @param jedis a thread-safe Redis connection
-     * @return a set containing the names of all currently puased trigger groups
+     * @return a set containing the names of all currently paused trigger groups
      */
     public Set<String> getPausedTriggerGroups(Jedis jedis){
         final Set<String> triggerGroupSetKeys = jedis.smembers(redisSchema.pausedTriggerGroupsSet());
@@ -951,6 +982,7 @@ public class RedisStorage {
             final String lockId = jedis.get(redisSchema.triggerLockKey(redisSchema.triggerKey(triggerTuple.getElement())));
             if(Strings.isNullOrEmpty(lockId)){
                 // Lock key has expired. We can safely alter the trigger's state.
+                logger.debug(String.format("Changing state of orphaned trigger %s from %s to %s.", triggerTuple.getElement(), currentState, newState));
                 setTriggerState(newState, triggerTuple.getScore(), triggerTuple.getElement(), jedis);
             }
         }
@@ -1026,8 +1058,8 @@ public class RedisStorage {
      * @throws JobPersistenceException
      */
     public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, long timeWindow, Jedis jedis) throws JobPersistenceException, ClassNotFoundException {
-        List<OperableTrigger> acquiredTriggers = new ArrayList<>();
         releaseTriggersCron(jedis);
+        List<OperableTrigger> acquiredTriggers = new ArrayList<>();
         boolean retry;
         do{
             retry = false;
@@ -1106,15 +1138,21 @@ public class RedisStorage {
             pipe.sync();
             if(!triggerExistsResponse.get() || triggerAcquiredResponse.get() == null){
                 // the trigger does not exist or the trigger is not acquired
+                if(!triggerExistsResponse.get()){
+                    logger.debug(String.format("Trigger %s does not exist.", triggerHashKey));
+                }
+                else{
+                    logger.debug(String.format("Trigger %s was not acquired.", triggerHashKey));
+                }
                 continue;
             }
             Calendar calendar = null;
             final String calendarName = trigger.getCalendarName();
             if(calendarName != null){
                 calendar = retrieveCalendar(calendarName, jedis);
-            }
-            if(calendar == null){
-                continue;
+                if(calendar == null){
+                    continue;
+                }
             }
 
             final Date previousFireTime = trigger.getPreviousFireTime();
@@ -1124,9 +1162,9 @@ public class RedisStorage {
             TriggerFiredBundle triggerFiredBundle = new TriggerFiredBundle(job, trigger, calendar, false, new Date(), previousFireTime, previousFireTime, trigger.getNextFireTime());
 
             // handling jobs for which concurrent execution is disallowed
-            final String jobHashKey = redisSchema.jobHashKey(trigger.getJobKey());
             if(isJobConcurrentExecutionDisallowed(job.getJobClass())){
-                final String jobTriggerSetKey = redisSchema.jobTriggerSetKey(job.getKey());
+                final String jobHashKey = redisSchema.jobHashKey(trigger.getJobKey());
+                final String jobTriggerSetKey = redisSchema.jobTriggersSetKey(job.getKey());
                 for (String nonConcurrentTriggerHashKey : jedis.smembers(jobTriggerSetKey)) {
                     Double score = jedis.zscore(redisSchema.triggerStateKey(RedisTriggerState.WAITING), nonConcurrentTriggerHashKey);
                     if(score != null){
@@ -1148,11 +1186,12 @@ public class RedisStorage {
             // release the fired trigger
             if(trigger.getNextFireTime() != null){
                 final long nextFireTime = trigger.getNextFireTime().getTime();
-                jedis.hset(triggerHashKey, "nextFireTime", Long.toString(nextFireTime));
+                jedis.hset(triggerHashKey, TRIGGER_NEXT_FIRE_TIME, Long.toString(nextFireTime));
+                logger.debug(String.format("Releasing trigger %s with next fire time %s. Setting state to WAITING.", triggerHashKey, nextFireTime));
                 setTriggerState(RedisTriggerState.WAITING, (double) nextFireTime, triggerHashKey, jedis);
             }
             else{
-                jedis.hset(triggerHashKey, "nextFireTime", "");
+                jedis.hset(triggerHashKey, TRIGGER_NEXT_FIRE_TIME, "");
                 unsetTriggerState(triggerHashKey, jedis);
             }
 
@@ -1184,26 +1223,31 @@ public class RedisStorage {
         logger.debug(String.format("Job %s completed.", jobHashKey));
         if(jedis.exists(jobHashKey)) {
             // job was not deleted during execution
-            Pipeline pipe = jedis.pipelined();
+            Pipeline pipe;
             if (isPersistJobDataAfterExecution(jobDetail.getJobClass())) {
                 // update the job data map
                 JobDataMap jobDataMap = jobDetail.getJobDataMap();
+                pipe = jedis.pipelined();
                 pipe.del(jobDataMapHashKey);
                 if (jobDataMap != null && !jobDataMap.isEmpty()) {
                     pipe.hmset(jobDataMapHashKey, getStringDataMap(jobDataMap));
                 }
+                pipe.sync();
             }
             if (isJobConcurrentExecutionDisallowed(jobDetail.getJobClass())) {
                 // unblock the job
+                pipe = jedis.pipelined();
                 pipe.srem(redisSchema.blockedJobsSet(), jobHashKey);
                 pipe.del(redisSchema.jobBlockedKey(jobDetail.getKey()));
+                pipe.sync();
 
-                final String jobTriggersSetKey = redisSchema.jobTriggerSetKey(jobDetail.getKey());
+                final String jobTriggersSetKey = redisSchema.jobTriggersSetKey(jobDetail.getKey());
                 for (String nonConcurrentTriggerHashKey : jedis.smembers(jobTriggersSetKey)) {
                     Double score = jedis.zscore(redisSchema.triggerStateKey(RedisTriggerState.BLOCKED), nonConcurrentTriggerHashKey);
                     if (score != null) {
                         setTriggerState(RedisTriggerState.WAITING, score, nonConcurrentTriggerHashKey, jedis);
-                    } else {
+                    }
+                    else {
                         score = jedis.zscore(redisSchema.triggerStateKey(RedisTriggerState.PAUSED_BLOCKED), nonConcurrentTriggerHashKey);
                         if (score != null) {
                             setTriggerState(RedisTriggerState.PAUSED, score, nonConcurrentTriggerHashKey, jedis);
@@ -1212,7 +1256,6 @@ public class RedisStorage {
                 }
                 signaler.signalSchedulingChange(0L);
             }
-            pipe.sync();
         }
         else{
             // unblock the job, even if it has been deleted
@@ -1224,7 +1267,7 @@ public class RedisStorage {
             if(triggerInstCode == Trigger.CompletedExecutionInstruction.DELETE_TRIGGER){
                 if(trigger.getNextFireTime() == null){
                     // double-check for possible reschedule within job execution, which would cancel the need to delete
-                    if(Strings.isNullOrEmpty(jedis.hget(triggerHashKey, "nextFireTime"))){
+                    if(Strings.isNullOrEmpty(jedis.hget(triggerHashKey, TRIGGER_NEXT_FIRE_TIME))){
                         removeTrigger(trigger.getKey(), jedis);
                     }
                 }
@@ -1244,16 +1287,16 @@ public class RedisStorage {
                 signaler.signalSchedulingChange(0L);
             }
             else if(triggerInstCode == Trigger.CompletedExecutionInstruction.SET_ALL_JOB_TRIGGERS_ERROR){
-                final String jobTriggersSetKey = redisSchema.jobTriggerSetKey(jobDetail.getKey());
+                final String jobTriggersSetKey = redisSchema.jobTriggersSetKey(jobDetail.getKey());
                 for (String errorTriggerHashKey : jedis.smembers(jobTriggersSetKey)) {
-                    final String nextFireTime = jedis.hget(errorTriggerHashKey, "nextFireTime");
+                    final String nextFireTime = jedis.hget(errorTriggerHashKey, TRIGGER_NEXT_FIRE_TIME);
                     final double score = Strings.isNullOrEmpty(nextFireTime) ? 0 : Double.parseDouble(nextFireTime);
                     setTriggerState(RedisTriggerState.ERROR, score, errorTriggerHashKey, jedis);
                 }
                 signaler.signalSchedulingChange(0L);
             }
             else if(triggerInstCode == Trigger.CompletedExecutionInstruction.SET_ALL_JOB_TRIGGERS_COMPLETE){
-                final String jobTriggerSetKey = redisSchema.jobTriggerSetKey(jobDetail.getKey());
+                final String jobTriggerSetKey = redisSchema.jobTriggersSetKey(jobDetail.getKey());
                 for (String completedTriggerHashKey : jedis.smembers(jobTriggerSetKey)) {
                     setTriggerState(RedisTriggerState.COMPLETED, (double) System.currentTimeMillis(), completedTriggerHashKey, jedis);
                 }

@@ -2,7 +2,6 @@ package net.joelinn.quartz;
 
 import org.junit.Test;
 import org.quartz.*;
-import org.quartz.impl.calendar.WeeklyCalendar;
 import org.quartz.impl.matchers.GroupMatcher;
 import org.quartz.impl.triggers.CronTriggerImpl;
 
@@ -235,15 +234,8 @@ public class StoreJobTest extends BaseTest{
         // create and store a job with multiple triggers
         JobDetail job = getJobDetail("job1", "jobGroup1");
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "triggerGroup1", job.getKey());
-        trigger1.computeFirstFireTime(new WeeklyCalendar());
         CronTriggerImpl trigger2 = getCronTrigger("trigger2", "triggerGroup1", job.getKey());
-        trigger2.computeFirstFireTime(new WeeklyCalendar());
-        Set<Trigger> triggersSet = new HashSet<>();
-        triggersSet.add(trigger1);
-        triggersSet.add(trigger2);
-        Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = new HashMap<>();
-        jobsAndTriggers.put(job, triggersSet);
-        jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
+        storeJobAndTriggers(job, trigger1, trigger2);
 
         // pause the job
         jobStore.pauseJob(job.getKey());
