@@ -157,6 +157,10 @@ public class RedisJobStore implements JobStore {
             storage.storeJob(newJob, false, jedis);
             storage.storeTrigger(newTrigger, false, jedis);
         }
+        catch (ObjectAlreadyExistsException e){
+            logger.info("Job and / or trigger already exist in storage.", e);
+            throw e;
+        }
         catch (Exception e){
             logger.error("Could not store job.", e);
             throw new JobPersistenceException(e.getMessage(), e);
