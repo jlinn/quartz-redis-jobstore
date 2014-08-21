@@ -326,11 +326,25 @@ public class RedisStorage {
 
     /**
      * Remove (delete) the <code>{@link org.quartz.Trigger}</code> with the given key.
+     * If the associated job is non-durable and has no triggers after the given trigger is removed, the job will be
+     * removed, as well.
      * @param triggerKey the key of the trigger to be removed
      * @param jedis a thread-safe Redis connection
      * @return true if the trigger was found and removed
      */
     public boolean removeTrigger(TriggerKey triggerKey, Jedis jedis) throws JobPersistenceException, ClassNotFoundException {
+        return removeTrigger(triggerKey, true, jedis);
+    }
+
+    /**
+     * Remove (delete) the <code>{@link org.quartz.Trigger}</code> with the given key.
+     * @param triggerKey the key of the trigger to be removed
+     * @param removeNonDurableJob if true, the job associated with the given trigger will be removed if it is non-durable
+     *                            and has no other triggers
+     * @param jedis a thread-safe Redis connection
+     * @return true if the trigger was found and removed
+     */
+    protected boolean removeTrigger(TriggerKey triggerKey, boolean removeNonDurableJob, Jedis jedis) throws JobPersistenceException, ClassNotFoundException {
         final String triggerHashKey = redisSchema.triggerHashKey(triggerKey);
         final String triggerGroupSetKey = redisSchema.triggerGroupSetKey(triggerKey);
 
@@ -357,16 +371,18 @@ public class RedisStorage {
             jedis.srem(redisSchema.triggerGroupsSet(), triggerGroupSetKey);
         }
 
-        pipe = jedis.pipelined();
-        Response<Long> jobTriggerSetKeySizeResponse = pipe.scard(jobTriggerSetKey);
-        Response<Boolean> jobExistsResponse = pipe.exists(jobHashKey);
-        pipe.sync();
-        if(jobTriggerSetKeySizeResponse.get() == 0 && jobExistsResponse.get()){
-            JobDetail job = retrieveJob(trigger.getJobKey(), jedis);
-            if(!job.isDurable()){
-                // Job is not durable and has no remaining triggers. Delete it.
-                removeJob(job.getKey(), jedis);
-                signaler.notifySchedulerListenersJobDeleted(job.getKey());
+        if(removeNonDurableJob){
+            pipe = jedis.pipelined();
+            Response<Long> jobTriggerSetKeySizeResponse = pipe.scard(jobTriggerSetKey);
+            Response<Boolean> jobExistsResponse = pipe.exists(jobHashKey);
+            pipe.sync();
+            if(jobTriggerSetKeySizeResponse.get() == 0 && jobExistsResponse.get()){
+                JobDetail job = retrieveJob(trigger.getJobKey(), jedis);
+                if(!job.isDurable()){
+                    // Job is not durable and has no remaining triggers. Delete it.
+                    removeJob(job.getKey(), jedis);
+                    signaler.notifySchedulerListenersJobDeleted(job.getKey());
+                }
             }
         }
 
@@ -394,7 +410,7 @@ public class RedisStorage {
             if(!oldTrigger.getJobKey().equals(newTrigger.getJobKey())){
                 throw new JobPersistenceException("New trigger is not related to the same job as the old trigger.");
             }
-            removeTrigger(triggerKey, jedis);
+            removeTrigger(triggerKey, false, jedis);
             storeTrigger(newTrigger, false, jedis);
         }
         return found;
@@ -1170,7 +1186,7 @@ public class RedisStorage {
                 }
                 final String jobHashKey = redisSchema.jobHashKey(trigger.getJobKey());
                 JobDetail job = retrieveJob(trigger.getJobKey(), jedis);
-                if(isJobConcurrentExecutionDisallowed(job.getJobClass())){
+                if(job != null && isJobConcurrentExecutionDisallowed(job.getJobClass())){
                     if(acquiredJobHashKeysForNoConcurrentExec.contains(jobHashKey)){
                         // a trigger is already acquired for this job
                         continue;

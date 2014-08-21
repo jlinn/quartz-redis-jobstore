@@ -63,6 +63,7 @@ public abstract class BaseTest {
         schema = new RedisJobStoreSchema();
 
         jedis = jedisPool.getResource();
+        jedis.flushDB();
     }
 
     @After

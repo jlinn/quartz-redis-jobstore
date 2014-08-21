@@ -542,6 +542,28 @@ public class StoreTriggerTest extends BaseTest{
         assertThat(jobTriggerKeys, containsInAnyOrder(trigger2.getKey(), newTrigger.getKey()));
     }
 
+    @Test
+    public void testReplaceTriggerSingleTriggerNonDurableJob() throws JobPersistenceException {
+        // store trigger and job
+        JobDetail job = getJobDetail();
+        CronTriggerImpl trigger1 = getCronTrigger("trigger1", "group1", job.getKey());
+        storeJobAndTriggers(job, trigger1);
+
+        CronTriggerImpl newTrigger = getCronTrigger("newTrigger", "group1", job.getKey());
+
+        assertTrue(jobStore.replaceTrigger(trigger1.getKey(), newTrigger));
+
+        // ensure that the proper trigger was replaced
+        assertThat(jobStore.retrieveTrigger(trigger1.getKey()), nullValue());
+
+        List<OperableTrigger> jobTriggers = jobStore.getTriggersForJob(job.getKey());
+
+        assertThat(jobTriggers, hasSize(1));
+
+        // ensure that the job still exists
+        assertThat(jobStore.retrieveJob(job.getKey()), not(nullValue()));
+    }
+
     @Test(expected = JobPersistenceException.class)
     public void testReplaceTriggerWithDifferentJob() throws JobPersistenceException {
         // store triggers and job

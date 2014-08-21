@@ -120,6 +120,7 @@ public class StoreJobTest extends BaseTest{
         assertThat(jobStore.retrieveJob(job.getKey()), nullValue());
         assertThat(jobStore.retrieveTrigger(trigger1.getKey()), nullValue());
         assertThat(jobStore.retrieveTrigger(trigger2.getKey()), nullValue());
+        assertThat(jedis.get(schema.triggerHashKey(trigger1.getKey())), nullValue());
     }
 
     @Test
