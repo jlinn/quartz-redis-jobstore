@@ -12,6 +12,7 @@ import org.quartz.spi.SchedulerSignaler;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
+import redis.clients.jedis.Protocol;
 import redis.embedded.RedisServer;
 
 import java.io.IOException;
@@ -46,13 +47,15 @@ public abstract class BaseTest {
             e.printStackTrace();
             fail();
         }
-        jedisPool = new JedisPool(new JedisPoolConfig(), "localhost", 6379);
+        final short database = 1;
+        jedisPool = new JedisPool(new JedisPoolConfig(), "localhost", 6379, Protocol.DEFAULT_TIMEOUT, null, database);
 
         jobStore = new RedisJobStore();
         jobStore.setHost("localhost");
         jobStore.setLockTimeout(2000);
         jobStore.setPort(6379);
         jobStore.setInstanceId("testJobStore1");
+        jobStore.setDatabase(database);
         try {
             mockScheduleSignaler = mock(SchedulerSignaler.class);
             jobStore.initialize(null, mockScheduleSignaler);

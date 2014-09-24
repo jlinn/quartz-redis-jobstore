@@ -41,7 +41,12 @@ public class RedisJobStore implements JobStore {
     /**
      * Redis port
      */
-    protected int port;
+    protected int port = 6379;
+
+    /**
+     * Redis database
+     */
+    protected short database = 0;
 
     /**
      * Redis key prefix
@@ -67,7 +72,7 @@ public class RedisJobStore implements JobStore {
     @Override
     public void initialize(ClassLoadHelper loadHelper, SchedulerSignaler signaler) throws SchedulerConfigException {
         JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
-        jedisPool = new JedisPool(jedisPoolConfig, host, port, Protocol.DEFAULT_TIMEOUT);
+        jedisPool = new JedisPool(jedisPoolConfig, host, port, Protocol.DEFAULT_TIMEOUT, null, database);
 
         final RedisJobStoreSchema redisSchema = new RedisJobStoreSchema(keyPrefix, keyDelimiter);
 
@@ -1313,14 +1318,24 @@ public class RedisJobStore implements JobStore {
         setPort(Integer.valueOf(port));
     }
 
-    public RedisJobStore setKeyPrefix(String keyPrefix) {
-        this.keyPrefix = keyPrefix;
-        return this;
+    public void setDatabase(short database) {
+        this.database = database;
     }
 
-    public RedisJobStore setKeyDelimiter(String keyDelimiter) {
+    public void setDatabase(int database){
+        this.database = (short) database;
+    }
+
+    public void setDatabase(String database){
+        setDatabase(Short.valueOf(database));
+    }
+
+    public void setKeyPrefix(String keyPrefix) {
+        this.keyPrefix = keyPrefix;
+    }
+
+    public void setKeyDelimiter(String keyDelimiter) {
         this.keyDelimiter = keyDelimiter;
-        return this;
     }
 
     /**

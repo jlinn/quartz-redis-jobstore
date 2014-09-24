@@ -17,7 +17,7 @@ Maven dependency:
 <dependency>
     <groupId>net.joelinn</groupId>
     <artifactId>quartz-redis-jobstore</artifactId>
-    <version>0.1.2</version>
+    <version>0.1.3</version>
 </dependency>
 ```
 
@@ -30,8 +30,11 @@ org.quartz.jobStore.class: net.joelinn.quartz.jobstore.RedisJobStore
 # set the Redis host (required)
 org.quartz.jobStore.host: <your redis host>
 
-# set the redis port (required)
+# set the redis port (optional, defaults to 6379)
 org.quartz.jobStore.port: <your redis port>
+
+# set the redis database (optional, defaults to 0)
+org.quartz.jobStore.database: <your redis db>
 
 # set the Redis key prefix for all JobStore Redis keys (optional, defaults to none)
 org.quartz.jobStore.keyPrefix = a_prefix_
