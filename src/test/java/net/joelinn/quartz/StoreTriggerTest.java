@@ -32,7 +32,7 @@ import static org.mockito.Mockito.mock;
 public class StoreTriggerTest extends BaseTest{
 
     @Test
-    public void testStoreTrigger() throws Exception {
+    public void storeTrigger() throws Exception {
         CronTriggerImpl trigger = getCronTrigger();
 
         jobStore.storeTrigger(trigger, false);
@@ -51,19 +51,19 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test(expected = JobPersistenceException.class)
-    public void testStoreTriggerNoReplace() throws Exception {
+    public void storeTriggerNoReplace() throws Exception {
         jobStore.storeTrigger(getCronTrigger(), false);
         jobStore.storeTrigger(getCronTrigger(), false);
     }
 
     @Test
-    public void testStoreTriggerWithReplace() throws Exception {
+    public void storeTriggerWithReplace() throws Exception {
         jobStore.storeTrigger(getCronTrigger(), true);
         jobStore.storeTrigger(getCronTrigger(), true);
     }
 
     @Test
-    public void testRetrieveTrigger() throws Exception {
+    public void retrieveTrigger() throws Exception {
         CronTriggerImpl cronTrigger = getCronTrigger();
         jobStore.storeJob(getJobDetail(), false);
         jobStore.storeTrigger(cronTrigger, false);
@@ -79,7 +79,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testRemoveTrigger() throws Exception {
+    public void removeTrigger() throws Exception {
         JobDetail job = getJobDetail();
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "triggerGroup", job.getKey());
         CronTriggerImpl trigger2 = getCronTrigger("trigger2", "triggerGroup", job.getKey());
@@ -103,7 +103,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testGetTriggersForJob() throws Exception {
+    public void getTriggersForJob() throws Exception {
         JobDetail job = getJobDetail();
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "triggerGroup", job.getKey());
         CronTriggerImpl trigger2 = getCronTrigger("trigger2", "triggerGroup", job.getKey());
@@ -117,7 +117,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testGetNumberOfTriggers() throws Exception {
+    public void getNumberOfTriggers() throws Exception {
         JobDetail job = getJobDetail();
         jobStore.storeTrigger(getCronTrigger("trigger1", "group1", job.getKey()), false);
         jobStore.storeTrigger(getCronTrigger("trigger2", "group1", job.getKey()), false);
@@ -130,7 +130,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testGetTriggerKeys() throws Exception {
+    public void getTriggerKeys() throws Exception {
         JobDetail job = getJobDetail();
         jobStore.storeTrigger(getCronTrigger("trigger1", "group1", job.getKey()), false);
         jobStore.storeTrigger(getCronTrigger("trigger2", "group1", job.getKey()), false);
@@ -161,7 +161,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testGetTriggerGroupNames() throws Exception {
+    public void getTriggerGroupNames() throws Exception {
         List<String> triggerGroupNames = jobStore.getTriggerGroupNames();
 
         assertThat(triggerGroupNames, not(nullValue()));
@@ -180,7 +180,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testGetTriggerState() throws Exception {
+    public void getTriggerState() throws Exception {
         SchedulerSignaler signaler = mock(SchedulerSignaler.class);
         RedisStorage storageDriver = new RedisStorage(new RedisJobStoreSchema(), new ObjectMapper(), signaler, "scheduler1", 2000);
 
@@ -206,7 +206,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testPauseTrigger() throws Exception {
+    public void pauseTrigger() throws Exception {
         SchedulerSignaler signaler = mock(SchedulerSignaler.class);
         RedisStorage storageDriver = new RedisStorage(new RedisJobStoreSchema(), new ObjectMapper(), signaler, "scheduler1", 2000);
 
@@ -239,7 +239,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testPauseTriggersEquals() throws Exception {
+    public void pauseTriggersEquals() throws Exception {
         // store triggers
         JobDetail job = getJobDetail();
         jobStore.storeTrigger(getCronTrigger("trigger1", "group1", job.getKey()), false);
@@ -259,7 +259,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testPauseTriggersStartsWith() throws Exception {
+    public void pauseTriggersStartsWith() throws Exception {
         JobDetail job = getJobDetail();
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "group1", job.getKey());
         CronTriggerImpl trigger2 = getCronTrigger("trigger1", "group2", job.getKey());
@@ -277,7 +277,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testPauseTriggersEndsWith() throws Exception {
+    public void pauseTriggersEndsWith() throws Exception {
         JobDetail job = getJobDetail();
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "group1", job.getKey());
         CronTriggerImpl trigger2 = getCronTrigger("trigger1", "group2", job.getKey());
@@ -295,7 +295,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testResumeTrigger() throws Exception {
+    public void resumeTrigger() throws Exception {
         // create and store a job and trigger
         JobDetail job = getJobDetail();
         jobStore.storeJob(job, false);
@@ -319,7 +319,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testResumeTriggersEquals() throws Exception {
+    public void resumeTriggersEquals() throws Exception {
         // store triggers and job
         JobDetail job = getJobDetail();
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "group1", job.getKey());
@@ -350,7 +350,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testResumeTriggersEndsWith() throws Exception {
+    public void resumeTriggersEndsWith() throws Exception {
         JobDetail job = getJobDetail();
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "group1", job.getKey());
         CronTriggerImpl trigger2 = getCronTrigger("trigger2", "group1", job.getKey());
@@ -379,7 +379,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testResumeTriggersStartsWith() throws Exception {
+    public void resumeTriggersStartsWith() throws Exception {
         JobDetail job = getJobDetail();
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "mygroup1", job.getKey());
         CronTriggerImpl trigger2 = getCronTrigger("trigger2", "group1", job.getKey());
@@ -406,7 +406,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testGetPausedTriggerGroups() throws Exception {
+    public void getPausedTriggerGroups() throws Exception {
         // store triggers
         JobDetail job = getJobDetail();
         jobStore.storeTrigger(getCronTrigger("trigger1", "group1", job.getKey()), false);
@@ -428,7 +428,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testPauseAndResumeAll() throws Exception {
+    public void pauseAndResumeAll() throws Exception {
         // store some jobs with triggers
         Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = getJobsAndTriggers(2, 2, 2, 2);
         jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
@@ -462,7 +462,7 @@ public class StoreTriggerTest extends BaseTest{
 
     @Test
     @SuppressWarnings("unchecked")
-    public void testTriggersFired() throws Exception {
+    public void triggersFired() throws Exception {
         // store some jobs with triggers
         Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = getJobsAndTriggers(2, 2, 2, 2, "* * * * * ?");
         jobStore.storeCalendar("testCalendar", new WeeklyCalendar(), false, true);
@@ -486,7 +486,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testReplaceTrigger() throws Exception {
+    public void replaceTrigger() throws Exception {
         assertFalse(jobStore.replaceTrigger(TriggerKey.triggerKey("foo", "bar"), getCronTrigger()));
 
         // store triggers and job
@@ -514,7 +514,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test
-    public void testReplaceTriggerSingleTriggerNonDurableJob() throws Exception {
+    public void replaceTriggerSingleTriggerNonDurableJob() throws Exception {
         // store trigger and job
         JobDetail job = getJobDetail();
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "group1", job.getKey());
@@ -536,7 +536,7 @@ public class StoreTriggerTest extends BaseTest{
     }
 
     @Test(expected = JobPersistenceException.class)
-    public void testReplaceTriggerWithDifferentJob() throws Exception {
+    public void replaceTriggerWithDifferentJob() throws Exception {
         // store triggers and job
         JobDetail job = getJobDetail();
         jobStore.storeJob(job, false);

@@ -26,7 +26,7 @@ import static org.junit.Assert.*;
  */
 public class StoreCalendarTest extends BaseTest{
     @Test
-    public void testStoreCalendar() throws Exception {
+    public void storeCalendar() throws Exception {
         final String calendarName = "weekdayCalendar";
         Calendar calendar = getCalendar();
 
@@ -48,7 +48,7 @@ public class StoreCalendarTest extends BaseTest{
     }
 
     @Test
-    public void testStoreCalendarWithReplace() throws Exception {
+    public void storeCalendarWithReplace() throws Exception {
         final String calendarName = "weekdayCalendar";
         Calendar calendar = getCalendar();
         jobStore.storeCalendar(calendarName, calendar, true, false);
@@ -56,7 +56,7 @@ public class StoreCalendarTest extends BaseTest{
     }
 
     @Test(expected = JobPersistenceException.class)
-    public void testStoreCalendarNoReplace() throws Exception {
+    public void storeCalendarNoReplace() throws Exception {
         final String calendarName = "weekdayCalendar";
         Calendar calendar = getCalendar();
         jobStore.storeCalendar(calendarName, calendar, false, false);
@@ -64,7 +64,7 @@ public class StoreCalendarTest extends BaseTest{
     }
 
     @Test
-    public void testRetrieveCalendar() throws Exception {
+    public void retrieveCalendar() throws Exception {
         final String calendarName = "weekdayCalendar";
         Calendar calendar = getCalendar();
         jobStore.storeCalendar(calendarName, calendar, false, false);
@@ -78,7 +78,7 @@ public class StoreCalendarTest extends BaseTest{
     }
 
     @Test
-    public void testGetNumberOfCalendars() throws Exception {
+    public void getNumberOfCalendars() throws Exception {
         jobStore.storeCalendar("calendar1", getCalendar(), false, false);
         jobStore.storeCalendar("calendar1", getCalendar(), true, false);
         jobStore.storeCalendar("calendar2", getCalendar(), false, false);
@@ -89,7 +89,7 @@ public class StoreCalendarTest extends BaseTest{
     }
 
     @Test
-    public void testGetCalendarNames() throws Exception {
+    public void getCalendarNames() throws Exception {
         List<String> calendarNames = jobStore.getCalendarNames();
 
         assertThat(calendarNames, not(nullValue()));
@@ -105,7 +105,7 @@ public class StoreCalendarTest extends BaseTest{
     }
 
     @Test
-    public void testRemoveCalendar() throws Exception {
+    public void removeCalendar() throws Exception {
         assertFalse(jobStore.removeCalendar("foo"));
 
         jobStore.storeCalendar("calendar1", getCalendar(), false, false);
@@ -116,7 +116,7 @@ public class StoreCalendarTest extends BaseTest{
     }
 
     @Test(expected = JobPersistenceException.class)
-    public void testRemoveCalendarWithTrigger() throws Exception {
+    public void removeCalendarWithTrigger() throws Exception {
         // store trigger and job
         JobDetail job = getJobDetail();
         jobStore.storeJob(job, false);

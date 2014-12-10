@@ -31,7 +31,7 @@ public class CronTriggerMixinTest {
     }
 
     @Test
-    public void testSerialization(){
+    public void serialization(){
         String cron = "0/5 * * * * ?";
         CronTrigger trigger = TriggerBuilder.newTrigger()
                 .forJob("testJob", "testGroup")

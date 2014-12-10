@@ -22,7 +22,7 @@ import static org.junit.Assert.*;
 public class StoreJobTest extends BaseTest{
 
     @Test
-    public void testStoreJob() throws Exception {
+    public void storeJob() throws Exception {
         JobDetail testJob = getJobDetail();
 
         jobStore.storeJob(testJob, false);
@@ -42,19 +42,19 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test(expected = ObjectAlreadyExistsException.class)
-    public void testStoreJobNoReplace() throws Exception {
+    public void storeJobNoReplace() throws Exception {
         jobStore.storeJob(getJobDetail(), false);
         jobStore.storeJob(getJobDetail(), false);
     }
 
     @Test
-    public void testStoreJobWithReplace() throws Exception {
+    public void storeJobWithReplace() throws Exception {
         jobStore.storeJob(getJobDetail(), true);
         jobStore.storeJob(getJobDetail(), true);
     }
 
     @Test
-    public void testRetrieveJob() throws Exception {
+    public void retrieveJob() throws Exception {
         JobDetail testJob = getJobDetail();
         jobStore.storeJob(testJob, false);
 
@@ -71,12 +71,12 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testRetrieveNonExistentJob() throws Exception {
+    public void retrieveNonExistentJob() throws Exception {
         assertThat(jobStore.retrieveJob(new JobKey("foo", "bar")), nullValue());
     }
 
     @Test
-    public void testRemoveJob() throws Exception {
+    public void removeJob() throws Exception {
         // attempt to remove a non-existent job
         assertFalse(jobStore.removeJob(JobKey.jobKey("foo", "bar")));
 
@@ -101,7 +101,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testRemoveJobs() throws Exception {
+    public void removeJobs() throws Exception {
         // create and store some jobs with triggers
         Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = getJobsAndTriggers(2, 2, 2, 2);
         jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
@@ -123,7 +123,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testGetNumberOfJobs() throws Exception {
+    public void getNumberOfJobs() throws Exception {
         jobStore.storeJob(getJobDetail("job1", "group1"), false);
         jobStore.storeJob(getJobDetail("job2", "group1"), false);
         jobStore.storeJob(getJobDetail("job3", "group2"), false);
@@ -134,7 +134,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testGetJobKeys() throws Exception {
+    public void getJobKeys() throws Exception {
         jobStore.storeJob(getJobDetail("job1", "group1"), false);
         jobStore.storeJob(getJobDetail("job2", "group1"), false);
         jobStore.storeJob(getJobDetail("job3", "group2"), false);
@@ -165,7 +165,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testGetJobGroupNames() throws Exception {
+    public void getJobGroupNames() throws Exception {
         List<String> jobGroupNames = jobStore.getJobGroupNames();
 
         assertThat(jobGroupNames, not(nullValue()));
@@ -182,7 +182,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testPauseJob() throws Exception {
+    public void pauseJob() throws Exception {
         // create and store a job with multiple triggers
         JobDetail job = getJobDetail("job1", "jobGroup1");
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "triggerGroup1", job.getKey());
@@ -203,7 +203,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testPauseJobsEquals() throws Exception {
+    public void pauseJobsEquals() throws Exception {
         // create and store some jobs with triggers
         Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = getJobsAndTriggers(2, 2, 2, 2);
         jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
@@ -227,7 +227,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testPauseJobsStartsWith() throws Exception {
+    public void pauseJobsStartsWith() throws Exception {
         JobDetail job1 = getJobDetail("job1", "jobGroup1");
         storeJobAndTriggers(job1, getCronTrigger("trigger1", "triggerGroup1", job1.getKey()), getCronTrigger("trigger2", "triggerGroup1", job1.getKey()));
         JobDetail job2 = getJobDetail("job2", "yobGroup1");
@@ -249,7 +249,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testPauseJobsEndsWith() throws Exception {
+    public void pauseJobsEndsWith() throws Exception {
         JobDetail job1 = getJobDetail("job1", "jobGroup1");
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "triggerGroup1", job1.getKey());
         CronTriggerImpl trigger2 = getCronTrigger("trigger2", "triggerGroup1", job1.getKey());
@@ -273,7 +273,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testPauseJobsContains() throws Exception {
+    public void pauseJobsContains() throws Exception {
         JobDetail job1 = getJobDetail("job1", "jobGroup1");
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "triggerGroup1", job1.getKey());
         CronTriggerImpl trigger2 = getCronTrigger("trigger2", "triggerGroup1", job1.getKey());
@@ -304,7 +304,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testResumeJob() throws Exception {
+    public void resumeJob() throws Exception {
         // create and store a job with multiple triggers
         JobDetail job = getJobDetail("job1", "jobGroup1");
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "triggerGroup1", job.getKey());
@@ -327,7 +327,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testResumeJobsEquals() throws Exception {
+    public void resumeJobsEquals() throws Exception {
         // attempt to resume jobs for a non-existent job group
         Collection<String> resumedJobGroups = jobStore.resumeJobs(GroupMatcher.jobGroupEquals("foobar"));
         assertThat(resumedJobGroups, hasSize(0));
@@ -365,7 +365,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testResumeJobsEndsWith() throws Exception {
+    public void resumeJobsEndsWith() throws Exception {
         Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = getJobsAndTriggers(2, 2, 2, 2);
         jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
 

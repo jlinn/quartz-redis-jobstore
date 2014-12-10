@@ -31,7 +31,7 @@ public class SimpleTriggerMixinTest {
     }
 
     @Test
-    public void testSerialization(){
+    public void serialization(){
         SimpleTrigger trigger = TriggerBuilder.newTrigger()
                 .forJob("testJob", "testGroup")
                 .withIdentity("testTrigger", "testTriggerGroup")

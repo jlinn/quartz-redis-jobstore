@@ -31,7 +31,7 @@ public class JobDetailMixinTest {
     }
 
     @Test
-    public void testSerializeJobDetail() throws Exception {
+    public void serializeJobDetail() throws Exception {
         JobDetail testJob = JobBuilder.newJob(TestJob.class)
                 .withIdentity("testJob", "testGroup")
                 .usingJobData("timeout", 42)
