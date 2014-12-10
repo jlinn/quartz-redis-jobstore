@@ -22,7 +22,7 @@ import static org.junit.Assert.assertEquals;
  */
 public class RedisJobStoreTest extends BaseTest{
     @Test
-    public void testRedisJobStoreWithScheduler() throws SchedulerException {
+    public void testRedisJobStoreWithScheduler() throws Exception {
         Properties quartzProperties = new Properties();
         quartzProperties.setProperty("org.quartz.scheduler.instanceName", "testScheduler");
         quartzProperties.setProperty("org.quartz.threadPool.threadCount", "3");
@@ -58,7 +58,7 @@ public class RedisJobStoreTest extends BaseTest{
     }
 
     @Test
-    public void testClearAllSchedulingData() throws JobPersistenceException {
+    public void testClearAllSchedulingData() throws Exception {
         // create and store some jobs, triggers, and calendars
         Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = getJobsAndTriggers(2, 2, 2, 2);
         jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
