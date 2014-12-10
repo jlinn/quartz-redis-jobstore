@@ -1,9 +1,9 @@
 package net.joelinn.quartz.jobstore;
 
-import com.google.common.base.Splitter;
 import org.quartz.JobKey;
 import org.quartz.TriggerKey;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -95,7 +95,7 @@ public class RedisJobStoreSchema {
      * @return the {@link org.quartz.JobKey} object describing the job
      */
     public JobKey jobKey(final String jobHashKey){
-        final List<String> hashParts = Splitter.on(delimiter).splitToList(jobHashKey);
+        final List<String> hashParts = split(jobHashKey);
         return new JobKey(hashParts.get(2), hashParts.get(1));
     }
 
@@ -105,7 +105,7 @@ public class RedisJobStoreSchema {
      * @return the name of the job group
      */
     public String jobGroup(final String jobGroupSetKey){
-        return Splitter.on(delimiter).splitToList(jobGroupSetKey).get(1);
+        return split(jobGroupSetKey).get(1);
     }
 
     /**
@@ -138,7 +138,7 @@ public class RedisJobStoreSchema {
      * @return the {@link org.quartz.TriggerKey} object describing the desired trigger
      */
     public TriggerKey triggerKey(final String triggerHashKey){
-        final List<String> hashParts = Splitter.on(delimiter).splitToList(triggerHashKey);
+        final List<String> hashParts = split(triggerHashKey);
         return new TriggerKey(hashParts.get(2), hashParts.get(1));
     }
 
@@ -148,7 +148,7 @@ public class RedisJobStoreSchema {
      * @return the name of the trigger group represented by the given redis key
      */
     public String triggerGroup(final String triggerGroupSetKey){
-        return Splitter.on(delimiter).splitToList(triggerGroupSetKey).get(1);
+        return split(triggerGroupSetKey).get(1);
     }
 
     /**
@@ -242,7 +242,7 @@ public class RedisJobStoreSchema {
      * @return the name of the calendar represented by the given key
      */
     public String calendarName(final String calendarHashKey){
-        return Splitter.on(delimiter).splitToList(calendarHashKey).get(1);
+        return split(calendarHashKey).get(1);
     }
 
     /**
@@ -259,5 +259,14 @@ public class RedisJobStoreSchema {
      */
     protected String addPrefix(String key){
         return prefix + key;
+    }
+
+    /**
+     * Split a string on the configured delimiter
+     * @param string the string to split
+     * @return a list comprised of the split parts of the given string
+     */
+    protected List<String> split(final String string){
+        return Arrays.asList(string.split(delimiter));
     }
 }

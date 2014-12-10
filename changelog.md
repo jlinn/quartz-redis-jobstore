@@ -1,6 +1,6 @@
 # Changelog
 ### 2014-12-09
-* Update Guava to 18.0
+* Remove Guava dependency
 
 ### 2014-09-24
 * Add the ability to specify a redis database.

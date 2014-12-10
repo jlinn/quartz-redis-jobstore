@@ -3,13 +3,15 @@ package net.joelinn.quartz.jobstore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Strings;
 import org.quartz.Calendar;
 import org.quartz.*;
 import org.quartz.impl.JobDetailImpl;
 import org.quartz.impl.matchers.GroupMatcher;
 import org.quartz.impl.matchers.StringMatcher;
-import org.quartz.spi.*;
+import org.quartz.spi.OperableTrigger;
+import org.quartz.spi.SchedulerSignaler;
+import org.quartz.spi.TriggerFiredBundle;
+import org.quartz.spi.TriggerFiredResult;
 import org.quartz.utils.ClassUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,7 +73,7 @@ public class RedisStorage {
     public boolean lock(Jedis jedis){
         UUID lockId = UUID.randomUUID();
         final String setResponse = jedis.set(redisSchema.lockKey(), lockId.toString(), "NX", "PX", lockTimeout);
-        boolean lockAcquired = !Strings.isNullOrEmpty(setResponse) && setResponse.equals("OK");
+        boolean lockAcquired = !isNullOrEmpty(setResponse) && setResponse.equals("OK");
         if(lockAcquired){
             // save the random value used to lock so that we can successfully unlock later
             lockValue = lockId;
@@ -100,7 +102,7 @@ public class RedisStorage {
      */
     public boolean unlock(Jedis jedis){
         final String currentLock = jedis.get(redisSchema.lockKey());
-        if(!Strings.isNullOrEmpty(currentLock) && UUID.fromString(currentLock).equals(lockValue)){
+        if(!isNullOrEmpty(currentLock) && UUID.fromString(currentLock).equals(lockValue)){
             // This is our lock.  We can remove it.
             jedis.del(redisSchema.lockKey());
             return true;
@@ -386,7 +388,7 @@ public class RedisStorage {
             }
         }
 
-        if(Strings.isNullOrEmpty(trigger.getCalendarName())){
+        if(isNullOrEmpty(trigger.getCalendarName())){
             jedis.srem(redisSchema.calendarTriggersSetKey(trigger.getCalendarName()), triggerHashKey);
         }
         unsetTriggerState(triggerHashKey, jedis);
@@ -1088,7 +1090,7 @@ public class RedisStorage {
     protected void releaseOrphanedTriggers(RedisTriggerState currentState, RedisTriggerState newState, Jedis jedis) throws JobPersistenceException {
         for (Tuple triggerTuple : jedis.zrangeWithScores(redisSchema.triggerStateKey(currentState), 0, -1)) {
             final String lockId = jedis.get(redisSchema.triggerLockKey(redisSchema.triggerKey(triggerTuple.getElement())));
-            if(Strings.isNullOrEmpty(lockId)){
+            if(isNullOrEmpty(lockId)){
                 // Lock key has expired. We can safely alter the trigger's state.
                 logger.debug(String.format("Changing state of orphaned trigger %s from %s to %s.", triggerTuple.getElement(), currentState, newState));
                 setTriggerState(newState, triggerTuple.getScore(), triggerTuple.getElement(), jedis);
@@ -1375,7 +1377,7 @@ public class RedisStorage {
             if(triggerInstCode == Trigger.CompletedExecutionInstruction.DELETE_TRIGGER){
                 if(trigger.getNextFireTime() == null){
                     // double-check for possible reschedule within job execution, which would cancel the need to delete
-                    if(Strings.isNullOrEmpty(jedis.hget(triggerHashKey, TRIGGER_NEXT_FIRE_TIME))){
+                    if(isNullOrEmpty(jedis.hget(triggerHashKey, TRIGGER_NEXT_FIRE_TIME))){
                         removeTrigger(trigger.getKey(), jedis);
                     }
                 }
@@ -1398,7 +1400,7 @@ public class RedisStorage {
                 final String jobTriggersSetKey = redisSchema.jobTriggersSetKey(jobDetail.getKey());
                 for (String errorTriggerHashKey : jedis.smembers(jobTriggersSetKey)) {
                     final String nextFireTime = jedis.hget(errorTriggerHashKey, TRIGGER_NEXT_FIRE_TIME);
-                    final double score = Strings.isNullOrEmpty(nextFireTime) ? 0 : Double.parseDouble(nextFireTime);
+                    final double score = isNullOrEmpty(nextFireTime) ? 0 : Double.parseDouble(nextFireTime);
                     setTriggerState(RedisTriggerState.ERROR, score, errorTriggerHashKey, jedis);
                 }
                 signaler.signalSchedulingChange(0L);
@@ -1411,5 +1413,14 @@ public class RedisStorage {
                 signaler.signalSchedulingChange(0L);
             }
         }
+    }
+
+    /**
+     * Check if a string is null or empty
+     * @param string a string to check
+     * @return true if the string is null or empty; false otherwise
+     */
+    protected boolean isNullOrEmpty(String string){
+        return string == null || string.length() == 0;
     }
 }
