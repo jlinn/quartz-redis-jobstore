@@ -18,7 +18,7 @@ import redis.embedded.RedisServer;
 import java.io.IOException;
 import java.util.*;
 
-import static junit.framework.TestCase.fail;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 
 /**

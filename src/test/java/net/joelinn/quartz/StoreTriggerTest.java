@@ -15,8 +15,6 @@ import org.quartz.spi.TriggerFiredResult;
 
 import java.util.*;
 
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.TestCase.*;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -24,6 +22,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 
 /**

@@ -8,11 +8,11 @@ import org.quartz.JobPersistenceException;
 import org.quartz.Trigger;
 import org.quartz.impl.triggers.CronTriggerImpl;
 
-import static junit.framework.TestCase.assertEquals;
-import static junit.framework.TestCase.assertFalse;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.verify;
 
 /**

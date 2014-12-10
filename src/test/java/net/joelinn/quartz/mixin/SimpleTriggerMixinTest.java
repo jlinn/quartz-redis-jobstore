@@ -13,9 +13,9 @@ import org.quartz.impl.triggers.SimpleTriggerImpl;
 import java.util.HashMap;
 import java.util.Map;
 
-import static junit.framework.TestCase.assertEquals;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Joe Linn
