@@ -5,7 +5,11 @@ quartz-redis-jobstore
 
 A [Quartz Scheduler](http://quartz-scheduler.org/) JobStore using [Redis](http://redis.io).
 
-This project was inspired by [redis-quartz](https://github.com/RedisLabs/redis-quartz).
+This project was inspired by [redis-quartz](https://github.com/RedisLabs/redis-quartz), and provides similar functionality with some key differences:
+
+* Redis database and key prefix are configurable.
+* Redis' [recommended distributed locking method](http://redis.io/topics/distlock) is used.
+* All of the functionality of this library is covered by a [test suite](https://github.com/jlinn/quartz-redis-jobstore/tree/master/src/test/java/net/joelinn/quartz).
 
 ## Requirements
 * Java 7 or higher
