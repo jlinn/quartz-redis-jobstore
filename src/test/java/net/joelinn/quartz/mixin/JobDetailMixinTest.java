@@ -10,14 +10,12 @@ import org.quartz.JobBuilder;
 import org.quartz.JobDetail;
 import org.quartz.impl.JobDetailImpl;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static junit.framework.TestCase.assertEquals;
-import static junit.framework.TestCase.fail;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Joe Linn
@@ -33,32 +31,28 @@ public class JobDetailMixinTest {
     }
 
     @Test
-    public void testSerializeJobDetail(){
+    public void serializeJobDetail() throws Exception {
         JobDetail testJob = JobBuilder.newJob(TestJob.class)
                 .withIdentity("testJob", "testGroup")
                 .usingJobData("timeout", 42)
                 .withDescription("I am describing a job!")
                 .build();
-        try {
-            String json = mapper.writeValueAsString(testJob);
-            Map<String, Object> jsonMap = mapper.readValue(json, new TypeReference<HashMap<String, String>>() {});
 
-            assertThat(jsonMap, hasKey("name"));
-            assertEquals(testJob.getKey().getName(), jsonMap.get("name"));
-            assertThat(jsonMap, hasKey("group"));
-            assertEquals(testJob.getKey().getGroup(), jsonMap.get("group"));
-            assertThat(jsonMap, hasKey("jobClass"));
-            assertEquals(testJob.getJobClass().getName(), jsonMap.get("jobClass"));
+        String json = mapper.writeValueAsString(testJob);
+        Map<String, Object> jsonMap = mapper.readValue(json, new TypeReference<HashMap<String, String>>() {
+        });
 
-            JobDetailImpl jobDetail = mapper.readValue(json, JobDetailImpl.class);
+        assertThat(jsonMap, hasKey("name"));
+        assertEquals(testJob.getKey().getName(), jsonMap.get("name"));
+        assertThat(jsonMap, hasKey("group"));
+        assertEquals(testJob.getKey().getGroup(), jsonMap.get("group"));
+        assertThat(jsonMap, hasKey("jobClass"));
+        assertEquals(testJob.getJobClass().getName(), jsonMap.get("jobClass"));
 
-            assertEquals(testJob.getKey().getName(), jobDetail.getKey().getName());
-            assertEquals(testJob.getKey().getGroup(), jobDetail.getKey().getGroup());
-            assertEquals(testJob.getJobClass(), jobDetail.getJobClass());
+        JobDetailImpl jobDetail = mapper.readValue(json, JobDetailImpl.class);
 
-        } catch (IOException e) {
-            e.printStackTrace();
-            fail();
-        }
+        assertEquals(testJob.getKey().getName(), jobDetail.getKey().getName());
+        assertEquals(testJob.getKey().getGroup(), jobDetail.getKey().getGroup());
+        assertEquals(testJob.getJobClass(), jobDetail.getJobClass());
     }
 }

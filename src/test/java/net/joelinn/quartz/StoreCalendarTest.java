@@ -8,19 +8,17 @@ import org.quartz.JobDetail;
 import org.quartz.JobPersistenceException;
 import org.quartz.impl.triggers.CronTriggerImpl;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static junit.framework.Assert.assertFalse;
-import static junit.framework.TestCase.*;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
+import static org.junit.Assert.*;
 
 /**
  * Joe Linn
@@ -28,16 +26,11 @@ import static org.hamcrest.collection.IsMapContaining.hasKey;
  */
 public class StoreCalendarTest extends BaseTest{
     @Test
-    public void testStoreCalendar(){
+    public void storeCalendar() throws Exception {
         final String calendarName = "weekdayCalendar";
         Calendar calendar = getCalendar();
 
-        try {
-            jobStore.storeCalendar(calendarName, calendar, false, false);
-        } catch (JobPersistenceException e) {
-            e.printStackTrace();
-            fail();
-        }
+        jobStore.storeCalendar(calendarName, calendar, false, false);
 
         final String calendarHashKey = schema.calendarHashKey(calendarName);
         Map<String, String> calendarMap = jedis.hgetAll(calendarHashKey);
@@ -47,18 +40,15 @@ public class StoreCalendarTest extends BaseTest{
         assertThat(calendarMap, hasKey("calendar_json"));
 
         ObjectMapper mapper = new ObjectMapper();
-        try {
-            Map<String, Object> calendarJson = mapper.readValue(calendarMap.get("calendar_json"), new TypeReference<HashMap<String, Object>>() {});
-            assertThat(calendarJson, hasKey("description"));
-            assertEquals("Only run on weekdays.", calendarJson.get("description"));
-        } catch (IOException e) {
-            e.printStackTrace();
-            fail();
-        }
+
+        Map<String, Object> calendarJson = mapper.readValue(calendarMap.get("calendar_json"), new TypeReference<HashMap<String, Object>>() {
+        });
+        assertThat(calendarJson, hasKey("description"));
+        assertEquals("Only run on weekdays.", calendarJson.get("description"));
     }
 
     @Test
-    public void testStoreCalendarWithReplace() throws JobPersistenceException {
+    public void storeCalendarWithReplace() throws Exception {
         final String calendarName = "weekdayCalendar";
         Calendar calendar = getCalendar();
         jobStore.storeCalendar(calendarName, calendar, true, false);
@@ -66,7 +56,7 @@ public class StoreCalendarTest extends BaseTest{
     }
 
     @Test(expected = JobPersistenceException.class)
-    public void testStoreCalendarNoReplace() throws JobPersistenceException {
+    public void storeCalendarNoReplace() throws Exception {
         final String calendarName = "weekdayCalendar";
         Calendar calendar = getCalendar();
         jobStore.storeCalendar(calendarName, calendar, false, false);
@@ -74,7 +64,7 @@ public class StoreCalendarTest extends BaseTest{
     }
 
     @Test
-    public void testRetrieveCalendar() throws JobPersistenceException {
+    public void retrieveCalendar() throws Exception {
         final String calendarName = "weekdayCalendar";
         Calendar calendar = getCalendar();
         jobStore.storeCalendar(calendarName, calendar, false, false);
@@ -88,7 +78,7 @@ public class StoreCalendarTest extends BaseTest{
     }
 
     @Test
-    public void testGetNumberOfCalendars() throws JobPersistenceException {
+    public void getNumberOfCalendars() throws Exception {
         jobStore.storeCalendar("calendar1", getCalendar(), false, false);
         jobStore.storeCalendar("calendar1", getCalendar(), true, false);
         jobStore.storeCalendar("calendar2", getCalendar(), false, false);
@@ -99,7 +89,7 @@ public class StoreCalendarTest extends BaseTest{
     }
 
     @Test
-    public void testGetCalendarNames() throws JobPersistenceException {
+    public void getCalendarNames() throws Exception {
         List<String> calendarNames = jobStore.getCalendarNames();
 
         assertThat(calendarNames, not(nullValue()));
@@ -115,7 +105,7 @@ public class StoreCalendarTest extends BaseTest{
     }
 
     @Test
-    public void testRemoveCalendar() throws JobPersistenceException {
+    public void removeCalendar() throws Exception {
         assertFalse(jobStore.removeCalendar("foo"));
 
         jobStore.storeCalendar("calendar1", getCalendar(), false, false);
@@ -126,7 +116,7 @@ public class StoreCalendarTest extends BaseTest{
     }
 
     @Test(expected = JobPersistenceException.class)
-    public void testRemoveCalendarWithTrigger() throws JobPersistenceException {
+    public void removeCalendarWithTrigger() throws Exception {
         // store trigger and job
         JobDetail job = getJobDetail();
         jobStore.storeJob(job, false);

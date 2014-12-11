@@ -7,15 +7,13 @@ import org.quartz.impl.triggers.CronTriggerImpl;
 
 import java.util.*;
 
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertFalse;
-import static junit.framework.TestCase.*;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
+import static org.junit.Assert.*;
 
 /**
  * Joe Linn
@@ -24,15 +22,10 @@ import static org.hamcrest.collection.IsMapContaining.hasKey;
 public class StoreJobTest extends BaseTest{
 
     @Test
-    public void testStoreJob(){
+    public void storeJob() throws Exception {
         JobDetail testJob = getJobDetail();
 
-        try {
-            jobStore.storeJob(testJob, false);
-        } catch (JobPersistenceException e) {
-            e.printStackTrace();
-            fail();
-        }
+        jobStore.storeJob(testJob, false);
 
         // ensure that the job was stored properly
         String jobHashKey = schema.jobHashKey(testJob.getKey());
@@ -49,40 +42,24 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test(expected = ObjectAlreadyExistsException.class)
-    public void testStoreJobNoReplace() throws JobPersistenceException {
+    public void storeJobNoReplace() throws Exception {
         jobStore.storeJob(getJobDetail(), false);
         jobStore.storeJob(getJobDetail(), false);
     }
 
     @Test
-    public void testStoreJobWithReplace(){
-        try {
-            jobStore.storeJob(getJobDetail(), true);
-            jobStore.storeJob(getJobDetail(), true);
-        } catch (JobPersistenceException e) {
-            e.printStackTrace();
-            fail();
-        }
+    public void storeJobWithReplace() throws Exception {
+        jobStore.storeJob(getJobDetail(), true);
+        jobStore.storeJob(getJobDetail(), true);
     }
 
     @Test
-    public void testRetrieveJob(){
+    public void retrieveJob() throws Exception {
         JobDetail testJob = getJobDetail();
-        try {
-            jobStore.storeJob(testJob, false);
-        } catch (JobPersistenceException e) {
-            e.printStackTrace();
-            fail();
-        }
+        jobStore.storeJob(testJob, false);
 
         // retrieve the job
-        JobDetail retrievedJob = null;
-        try {
-            retrievedJob = jobStore.retrieveJob(testJob.getKey());
-        } catch (JobPersistenceException e) {
-            e.printStackTrace();
-            fail();
-        }
+        JobDetail retrievedJob = jobStore.retrieveJob(testJob.getKey());
 
         assertEquals(testJob.getJobClass(), retrievedJob.getJobClass());
         assertEquals(testJob.getDescription(), retrievedJob.getDescription());
@@ -94,12 +71,12 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testRetrieveNonExistentJob() throws JobPersistenceException {
+    public void retrieveNonExistentJob() throws Exception {
         assertThat(jobStore.retrieveJob(new JobKey("foo", "bar")), nullValue());
     }
 
     @Test
-    public void testRemoveJob() throws JobPersistenceException {
+    public void removeJob() throws Exception {
         // attempt to remove a non-existent job
         assertFalse(jobStore.removeJob(JobKey.jobKey("foo", "bar")));
 
@@ -124,7 +101,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testRemoveJobs() throws JobPersistenceException {
+    public void removeJobs() throws Exception {
         // create and store some jobs with triggers
         Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = getJobsAndTriggers(2, 2, 2, 2);
         jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
@@ -146,7 +123,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testGetNumberOfJobs() throws JobPersistenceException {
+    public void getNumberOfJobs() throws Exception {
         jobStore.storeJob(getJobDetail("job1", "group1"), false);
         jobStore.storeJob(getJobDetail("job2", "group1"), false);
         jobStore.storeJob(getJobDetail("job3", "group2"), false);
@@ -157,7 +134,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testGetJobKeys() throws JobPersistenceException {
+    public void getJobKeys() throws Exception {
         jobStore.storeJob(getJobDetail("job1", "group1"), false);
         jobStore.storeJob(getJobDetail("job2", "group1"), false);
         jobStore.storeJob(getJobDetail("job3", "group2"), false);
@@ -188,7 +165,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testGetJobGroupNames() throws JobPersistenceException {
+    public void getJobGroupNames() throws Exception {
         List<String> jobGroupNames = jobStore.getJobGroupNames();
 
         assertThat(jobGroupNames, not(nullValue()));
@@ -205,7 +182,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testPauseJob() throws JobPersistenceException {
+    public void pauseJob() throws Exception {
         // create and store a job with multiple triggers
         JobDetail job = getJobDetail("job1", "jobGroup1");
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "triggerGroup1", job.getKey());
@@ -226,7 +203,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testPauseJobsEquals() throws JobPersistenceException {
+    public void pauseJobsEquals() throws Exception {
         // create and store some jobs with triggers
         Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = getJobsAndTriggers(2, 2, 2, 2);
         jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
@@ -250,7 +227,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testPauseJobsStartsWith() throws JobPersistenceException {
+    public void pauseJobsStartsWith() throws Exception {
         JobDetail job1 = getJobDetail("job1", "jobGroup1");
         storeJobAndTriggers(job1, getCronTrigger("trigger1", "triggerGroup1", job1.getKey()), getCronTrigger("trigger2", "triggerGroup1", job1.getKey()));
         JobDetail job2 = getJobDetail("job2", "yobGroup1");
@@ -272,7 +249,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testPauseJobsEndsWith() throws JobPersistenceException {
+    public void pauseJobsEndsWith() throws Exception {
         JobDetail job1 = getJobDetail("job1", "jobGroup1");
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "triggerGroup1", job1.getKey());
         CronTriggerImpl trigger2 = getCronTrigger("trigger2", "triggerGroup1", job1.getKey());
@@ -296,7 +273,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testPauseJobsContains() throws JobPersistenceException {
+    public void pauseJobsContains() throws Exception {
         JobDetail job1 = getJobDetail("job1", "jobGroup1");
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "triggerGroup1", job1.getKey());
         CronTriggerImpl trigger2 = getCronTrigger("trigger2", "triggerGroup1", job1.getKey());
@@ -327,7 +304,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testResumeJob() throws JobPersistenceException {
+    public void resumeJob() throws Exception {
         // create and store a job with multiple triggers
         JobDetail job = getJobDetail("job1", "jobGroup1");
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "triggerGroup1", job.getKey());
@@ -350,7 +327,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testResumeJobsEquals() throws JobPersistenceException {
+    public void resumeJobsEquals() throws Exception {
         // attempt to resume jobs for a non-existent job group
         Collection<String> resumedJobGroups = jobStore.resumeJobs(GroupMatcher.jobGroupEquals("foobar"));
         assertThat(resumedJobGroups, hasSize(0));
@@ -388,7 +365,7 @@ public class StoreJobTest extends BaseTest{
     }
 
     @Test
-    public void testResumeJobsEndsWith() throws JobPersistenceException {
+    public void resumeJobsEndsWith() throws Exception {
         Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = getJobsAndTriggers(2, 2, 2, 2);
         jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
 

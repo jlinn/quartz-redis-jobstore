@@ -13,9 +13,9 @@ import org.quartz.impl.triggers.CronTriggerImpl;
 import java.util.HashMap;
 import java.util.Map;
 
-import static junit.framework.TestCase.assertEquals;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Joe Linn
@@ -31,7 +31,7 @@ public class CronTriggerMixinTest {
     }
 
     @Test
-    public void testSerialization(){
+    public void serialization(){
         String cron = "0/5 * * * * ?";
         CronTrigger trigger = TriggerBuilder.newTrigger()
                 .forJob("testJob", "testGroup")

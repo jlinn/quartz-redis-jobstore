@@ -10,11 +10,11 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
-import static junit.framework.TestCase.assertEquals;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Joe Linn
@@ -22,7 +22,7 @@ import static org.hamcrest.collection.IsMapContaining.hasKey;
  */
 public class RedisJobStoreTest extends BaseTest{
     @Test
-    public void testRedisJobStoreWithScheduler() throws SchedulerException {
+    public void redisJobStoreWithScheduler() throws Exception {
         Properties quartzProperties = new Properties();
         quartzProperties.setProperty("org.quartz.scheduler.instanceName", "testScheduler");
         quartzProperties.setProperty("org.quartz.threadPool.threadCount", "3");
@@ -58,7 +58,7 @@ public class RedisJobStoreTest extends BaseTest{
     }
 
     @Test
-    public void testClearAllSchedulingData() throws JobPersistenceException {
+    public void clearAllSchedulingData() throws Exception {
         // create and store some jobs, triggers, and calendars
         Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = getJobsAndTriggers(2, 2, 2, 2);
         jobStore.storeJobsAndTriggers(jobsAndTriggers, false);

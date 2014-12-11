@@ -8,11 +8,11 @@ import org.quartz.JobPersistenceException;
 import org.quartz.Trigger;
 import org.quartz.impl.triggers.CronTriggerImpl;
 
-import static junit.framework.TestCase.assertEquals;
-import static junit.framework.TestCase.assertFalse;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -36,7 +36,7 @@ public class TriggeredJobCompleteTest extends BaseTest{
     }
 
     @Test
-    public void testTriggeredJobCompleteDelete() throws JobPersistenceException {
+    public void triggeredJobCompleteDelete() throws JobPersistenceException {
         jobStore.triggeredJobComplete(trigger1, job, Trigger.CompletedExecutionInstruction.DELETE_TRIGGER);
 
         // ensure that the proper trigger was deleted
@@ -47,7 +47,7 @@ public class TriggeredJobCompleteTest extends BaseTest{
     }
 
     @Test
-    public void testTriggeredJobCompleteComplete() throws JobPersistenceException {
+    public void triggeredJobCompleteComplete() throws JobPersistenceException {
         jobStore.triggeredJobComplete(trigger1, job, Trigger.CompletedExecutionInstruction.SET_TRIGGER_COMPLETE);
 
         // ensure that neither trigger was deleted
@@ -62,7 +62,7 @@ public class TriggeredJobCompleteTest extends BaseTest{
     }
 
     @Test
-    public void testTriggeredJobCompleteError() throws JobPersistenceException {
+    public void triggeredJobCompleteError() throws JobPersistenceException {
         jobStore.triggeredJobComplete(trigger1, job, Trigger.CompletedExecutionInstruction.SET_TRIGGER_ERROR);
 
         // ensure that the proper trigger was set to ERROR
@@ -73,7 +73,7 @@ public class TriggeredJobCompleteTest extends BaseTest{
     }
 
     @Test
-    public void testTriggeredJobCompleteAllError() throws JobPersistenceException {
+    public void triggeredJobCompleteAllError() throws JobPersistenceException {
         jobStore.triggeredJobComplete(trigger1, job, Trigger.CompletedExecutionInstruction.SET_ALL_JOB_TRIGGERS_ERROR);
 
         // ensure that both triggers were set to ERROR
@@ -84,7 +84,7 @@ public class TriggeredJobCompleteTest extends BaseTest{
     }
 
     @Test
-    public void testTriggeredJobCompleteAllComplete() throws JobPersistenceException {
+    public void triggeredJobCompleteAllComplete() throws JobPersistenceException {
         jobStore.triggeredJobComplete(trigger1, job, Trigger.CompletedExecutionInstruction.SET_ALL_JOB_TRIGGERS_COMPLETE);
 
         // ensure that both triggers were set to COMPLETE
@@ -95,7 +95,7 @@ public class TriggeredJobCompleteTest extends BaseTest{
     }
 
     @Test
-    public void testTriggeredJobCompletePersist() throws JobPersistenceException {
+    public void triggeredJobCompletePersist() throws JobPersistenceException {
         JobDetail jobPersist = JobBuilder.newJob(TestJobPersist.class)
                 .withIdentity("testJobPersist1", "jobGroupPersist1")
                 .usingJobData("timeout", 42)
@@ -111,7 +111,7 @@ public class TriggeredJobCompleteTest extends BaseTest{
     }
 
     @Test
-    public void testTriggeredJobCompleteNonConcurrent() throws JobPersistenceException {
+    public void triggeredJobCompleteNonConcurrent() throws JobPersistenceException {
         JobDetail job = JobBuilder.newJob(TestJobNonConcurrent.class)
                 .withIdentity("testJobNonConcurrent1", "jobGroupNonConcurrent1")
                 .usingJobData("timeout", 42)
