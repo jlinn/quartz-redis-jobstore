@@ -21,7 +21,7 @@ Maven dependency:
 <dependency>
     <groupId>net.joelinn</groupId>
     <artifactId>quartz-redis-jobstore</artifactId>
-    <version>0.1.3</version>
+    <version>0.1.4</version>
 </dependency>
 ```
 
