@@ -111,7 +111,9 @@ public abstract class BaseTest {
                 .usingJobData("timeout", 5)
                 .withDescription("A description!")
                 .build();
-        trigger.computeFirstFireTime(new WeeklyCalendar());
+        WeeklyCalendar calendar = new WeeklyCalendar();
+        calendar.setDaysExcluded(new boolean[]{false, false, false, false, false, false, false, false, false});
+        trigger.computeFirstFireTime(calendar);
         trigger.setCalendarName("testCalendar");
         return trigger;
     }
