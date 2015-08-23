@@ -4,11 +4,13 @@ import net.joelinn.quartz.jobstore.RedisJobStore;
 import net.joelinn.quartz.jobstore.RedisJobStoreSchema;
 import org.junit.After;
 import org.junit.Before;
-import org.quartz.*;
 import org.quartz.Calendar;
+import org.quartz.*;
 import org.quartz.impl.calendar.WeeklyCalendar;
 import org.quartz.impl.triggers.CronTriggerImpl;
 import org.quartz.spi.SchedulerSignaler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
@@ -16,9 +18,9 @@ import redis.clients.jedis.Protocol;
 import redis.embedded.RedisServer;
 
 import java.io.IOException;
+import java.net.ServerSocket;
 import java.util.*;
 
-import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -26,6 +28,8 @@ import static org.mockito.Mockito.mock;
  * 7/15/2014
  */
 public abstract class BaseTest {
+    private static final Logger logger = LoggerFactory.getLogger(BaseTest.class);
+
     protected RedisServer redisServer;
 
     protected JedisPool jedisPool;
@@ -38,40 +42,48 @@ public abstract class BaseTest {
 
     protected SchedulerSignaler mockScheduleSignaler;
 
+    protected int port;
+
+    protected String host = "localhost";
+
     @Before
-    public void setUpRedis(){
-        try {
-            redisServer = new RedisServer(6379);
-            redisServer.start();
-        } catch (IOException e) {
-            e.printStackTrace();
-            fail();
-        }
+    public void setUpRedis() throws IOException, SchedulerConfigException {
+        port = getPort();
+        logger.debug("Attempting to start embedded Redis server on port " + port);
+        redisServer = RedisServer.builder()
+                .port(port)
+                .setting("maxheap 1000000000")
+                .build();
+        redisServer.start();
         final short database = 1;
-        jedisPool = new JedisPool(new JedisPoolConfig(), "localhost", 6379, Protocol.DEFAULT_TIMEOUT, null, database);
+        jedisPool = new JedisPool(new JedisPoolConfig(), host, port, Protocol.DEFAULT_TIMEOUT, null, database);
 
         jobStore = new RedisJobStore();
-        jobStore.setHost("localhost");
+        jobStore.setHost(host);
         jobStore.setLockTimeout(2000);
-        jobStore.setPort(6379);
+        jobStore.setPort(port);
         jobStore.setInstanceId("testJobStore1");
         jobStore.setDatabase(database);
-        try {
-            mockScheduleSignaler = mock(SchedulerSignaler.class);
-            jobStore.initialize(null, mockScheduleSignaler);
-        } catch (SchedulerConfigException e) {
-            e.printStackTrace();
-            fail();
-        }
+        mockScheduleSignaler = mock(SchedulerSignaler.class);
+        jobStore.initialize(null, mockScheduleSignaler);
         schema = new RedisJobStoreSchema();
 
         jedis = jedisPool.getResource();
         jedis.flushDB();
     }
 
+
+    protected int getPort() throws IOException {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            socket.setReuseAddress(true);
+            return socket.getLocalPort();
+        }
+    }
+
+
     @After
     public void tearDownRedis() throws InterruptedException {
-        jedisPool.returnResource(jedis);
+        jedis.close();
         jedisPool.destroy();
         redisServer.stop();
     }

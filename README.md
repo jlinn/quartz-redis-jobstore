@@ -13,7 +13,7 @@ This project was inspired by [redis-quartz](https://github.com/RedisLabs/redis-q
 
 ## Requirements
 * Java 7 or higher
-* Redis 2.6.12 or higher
+* Redis 2.6.12 or higher (3.0 or higher for Redis cluster)
 
 ## Installation
 Maven dependency:
@@ -21,7 +21,7 @@ Maven dependency:
 <dependency>
     <groupId>net.joelinn</groupId>
     <artifactId>quartz-redis-jobstore</artifactId>
-    <version>0.1.4</version>
+    <version>1.0.0</version>
 </dependency>
 ```
 
@@ -29,13 +29,16 @@ Maven dependency:
 The following properties may be set in your `quartz.properties` file:
 ```
 # set the scheduler's JobStore class (required)
-org.quartz.jobStore.class: net.joelinn.quartz.jobstore.RedisJobStore
+org.quartz.jobStore.class = net.joelinn.quartz.jobstore.RedisJobStore
 
 # set the Redis host (required)
-org.quartz.jobStore.host: <your redis host>
+org.quartz.jobStore.host = <your redis host or a comma-delimited list of host:port if clustered use is desired>
 
 # set the redis port (optional, defaults to 6379)
-org.quartz.jobStore.port: <your redis port>
+org.quartz.jobStore.port = <your redis port>
+
+# enable Redis clustering (optional, defaults to false)
+org.quartz.jobStore.redisCluster = <true or false> 
 
 # set the redis database (optional, defaults to 0)
 org.quartz.jobStore.database: <your redis db>

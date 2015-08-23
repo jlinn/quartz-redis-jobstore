@@ -2,6 +2,7 @@ package net.joelinn.quartz;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.joelinn.quartz.jobstore.RedisJobStoreSchema;
+import net.joelinn.quartz.jobstore.AbstractRedisStorage;
 import net.joelinn.quartz.jobstore.RedisStorage;
 import net.joelinn.quartz.jobstore.RedisTriggerState;
 import org.junit.Test;
@@ -182,7 +183,7 @@ public class StoreTriggerTest extends BaseTest{
     @Test
     public void getTriggerState() throws Exception {
         SchedulerSignaler signaler = mock(SchedulerSignaler.class);
-        RedisStorage storageDriver = new RedisStorage(new RedisJobStoreSchema(), new ObjectMapper(), signaler, "scheduler1", 2000);
+        AbstractRedisStorage storageDriver = new RedisStorage(new RedisJobStoreSchema(), new ObjectMapper(), signaler, "scheduler1", 2000);
 
         // attempt to retrieve the state of a non-existent trigger
         Trigger.TriggerState state = jobStore.getTriggerState(new TriggerKey("foobar"));
@@ -208,7 +209,7 @@ public class StoreTriggerTest extends BaseTest{
     @Test
     public void pauseTrigger() throws Exception {
         SchedulerSignaler signaler = mock(SchedulerSignaler.class);
-        RedisStorage storageDriver = new RedisStorage(new RedisJobStoreSchema(), new ObjectMapper(), signaler, "scheduler1", 2000);
+        AbstractRedisStorage storageDriver = new RedisStorage(new RedisJobStoreSchema(), new ObjectMapper(), signaler, "scheduler1", 2000);
 
         // store a trigger
         JobDetail job = getJobDetail();

@@ -1,4 +1,9 @@
 # Changelog
+### 2015-08-19
+* Add support for [Jedis cluster](https://github.com/xetorthio/jedis#jedis-cluster).
+* Allow a pre-configured Pool<Jedis> or JedisCluster to be passed in to RedisJobStore.
+* Update to Jackson v2.6.1.
+
 ### 2014-12-09
 * Remove Guava dependency
 

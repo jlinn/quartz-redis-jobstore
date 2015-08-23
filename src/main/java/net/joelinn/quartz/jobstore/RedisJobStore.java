@@ -11,27 +11,29 @@ import org.quartz.impl.matchers.GroupMatcher;
 import org.quartz.spi.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisPool;
-import redis.clients.jedis.JedisPoolConfig;
-import redis.clients.jedis.Protocol;
-import redis.clients.jedis.exceptions.JedisConnectionException;
+import redis.clients.jedis.*;
+import redis.clients.util.Pool;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.*;
 
 /**
  * Joe Linn
  * 7/12/2014
  */
+@SuppressWarnings("unchecked")
 public class RedisJobStore implements JobStore {
     private static final Logger logger = LoggerFactory.getLogger(RedisJobStore.class);
 
-    protected static JedisPool jedisPool;
+    private Pool<Jedis> jedisPool;
+
+    private JedisCluster jedisCluster;
 
     /**
      * Redis lock timeout in milliseconds
      */
-    protected int lockTimeout = 30000;
+    protected int lockTimeout = 30_000;
 
     /**
      * Redis host
@@ -58,9 +60,27 @@ public class RedisJobStore implements JobStore {
      */
     protected String keyDelimiter = ":";
 
+    /**
+     * Set to true if a {@link JedisCluster} should be used. {@link #host} will be split on ',', and the resulting
+     * strings will be used as hostanmes for the cluster nodes.
+     */
+    private boolean redisCluster;
+
     protected String instanceId;
 
-    protected RedisStorage storage;
+    protected AbstractRedisStorage storage;
+
+
+    public RedisJobStore setJedisPool(Pool<Jedis> jedisPool) {
+        this.jedisPool = jedisPool;
+        return this;
+    }
+
+
+    public RedisJobStore setJedisCluster(JedisCluster jedisCluster) {
+        this.jedisCluster = jedisCluster;
+        return this;
+    }
 
     /**
      * Called by the QuartzScheduler before the <code>JobStore</code> is
@@ -71,18 +91,35 @@ public class RedisJobStore implements JobStore {
      */
     @Override
     public void initialize(ClassLoadHelper loadHelper, SchedulerSignaler signaler) throws SchedulerConfigException {
-        JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
-        jedisPool = new JedisPool(jedisPoolConfig, host, port, Protocol.DEFAULT_TIMEOUT, null, database);
-
         final RedisJobStoreSchema redisSchema = new RedisJobStoreSchema(keyPrefix, keyDelimiter);
 
         ObjectMapper mapper = new ObjectMapper();
-        mapper.addMixInAnnotations(CronTrigger.class, CronTriggerMixin.class);
-        mapper.addMixInAnnotations(SimpleTrigger.class, TriggerMixin.class);
-        mapper.addMixInAnnotations(JobDetail.class, JobDetailMixin.class);
+        mapper.addMixIn(CronTrigger.class, CronTriggerMixin.class);
+        mapper.addMixIn(SimpleTrigger.class, TriggerMixin.class);
+        mapper.addMixIn(JobDetail.class, JobDetailMixin.class);
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
-        storage = new RedisStorage(redisSchema, mapper, signaler, instanceId, lockTimeout);
+        if (redisCluster && jedisCluster == null) {
+            Set<HostAndPort> nodes = new HashSet<>();
+            for (String hostName : host.split(",")) {
+                int hostPort = port;
+                if (hostName.contains(":")) {
+                    String[] parts = hostName.split(":");
+                    hostName = parts[0];
+                    hostPort = Integer.valueOf(parts[1]);
+                }
+                nodes.add(new HostAndPort(hostName, hostPort));
+            }
+            jedisCluster = new JedisCluster(nodes);
+            storage = new RedisClusterStorage(redisSchema, mapper, signaler, instanceId, lockTimeout);
+        } else if (jedisPool == null) {
+            JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
+            if (logger.isDebugEnabled()) {
+                logger.debug("Instantiating JedisPool using host " + host + " and port " + port);
+            }
+            jedisPool = new JedisPool(jedisPoolConfig, host, port, Protocol.DEFAULT_TIMEOUT, null, database);
+            storage = new RedisStorage(redisSchema, mapper, signaler, instanceId, lockTimeout);
+        }
     }
 
     /**
@@ -139,7 +176,7 @@ public class RedisJobStore implements JobStore {
     }
 
     /**
-     * Whether or not the <code>JobStore</code> implementation is clustered.
+     * Whether or not the <code>JobStore</code> implementation is redisCluster.
      */
     @Override
     public boolean isClustered() {
@@ -155,24 +192,22 @@ public class RedisJobStore implements JobStore {
      *                                                 exists.
      */
     @Override
-    public void storeJobAndTrigger(JobDetail newJob, OperableTrigger newTrigger) throws ObjectAlreadyExistsException, JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            storage.storeJob(newJob, false, jedis);
-            storage.storeTrigger(newTrigger, false, jedis);
-        }
-        catch (ObjectAlreadyExistsException e){
+    public void storeJobAndTrigger(final JobDetail newJob, final OperableTrigger newTrigger) throws ObjectAlreadyExistsException, JobPersistenceException {
+        try {
+            doWithLock(new LockCallbackWithoutResult() {
+                @Override
+                public Void doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                    storage.storeJob(newJob, false, jedis);
+                    storage.storeTrigger(newTrigger, false, jedis);
+                    return null;
+                }
+            });
+        } catch (ObjectAlreadyExistsException e) {
             logger.info("Job and / or trigger already exist in storage.", e);
             throw e;
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             logger.error("Could not store job.", e);
             throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
         }
     }
 
@@ -187,46 +222,38 @@ public class RedisJobStore implements JobStore {
      *                                                 exists, and replaceExisting is set to false.
      */
     @Override
-    public void storeJob(JobDetail newJob, boolean replaceExisting) throws ObjectAlreadyExistsException, JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            storage.storeJob(newJob, replaceExisting, jedis);
-        }
-        catch (ObjectAlreadyExistsException e){
+    public void storeJob(final JobDetail newJob, final boolean replaceExisting) throws ObjectAlreadyExistsException, JobPersistenceException {
+        try {
+            doWithLock(new LockCallbackWithoutResult() {
+                @Override
+                public Void doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                    storage.storeJob(newJob, replaceExisting, jedis);
+                    return null;
+                }
+            });
+        } catch (ObjectAlreadyExistsException e) {
             logger.info("Job hash already exists");
             throw e;
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             logger.error("Could not store job.", e);
             throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
         }
     }
 
     @Override
-    public void storeJobsAndTriggers(Map<JobDetail, Set<? extends Trigger>> triggersAndJobs, boolean replace) throws ObjectAlreadyExistsException, JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            for (Map.Entry<JobDetail, Set<? extends Trigger>> entry : triggersAndJobs.entrySet()) {
-                storage.storeJob(entry.getKey(), replace, jedis);
-                for (Trigger trigger : entry.getValue()) {
-                    storage.storeTrigger((OperableTrigger) trigger, replace, jedis);
+    public void storeJobsAndTriggers(final Map<JobDetail, Set<? extends Trigger>> triggersAndJobs, final boolean replace) throws ObjectAlreadyExistsException, JobPersistenceException {
+        doWithLock(new LockCallbackWithoutResult() {
+            @Override
+            public Void doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                for (Map.Entry<JobDetail, Set<? extends Trigger>> entry : triggersAndJobs.entrySet()) {
+                    storage.storeJob(entry.getKey(), replace, jedis);
+                    for (Trigger trigger : entry.getValue()) {
+                        storage.storeTrigger((OperableTrigger) trigger, replace, jedis);
+                    }
                 }
+                return null;
             }
-        }
-        catch (Exception e){
-            logger.error("Could not store jobs and triggers.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+        }, "Could not store jobs and triggers.");
     }
 
     /**
@@ -245,41 +272,27 @@ public class RedisJobStore implements JobStore {
      * group was found and removed from the store.
      */
     @Override
-    public boolean removeJob(JobKey jobKey) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            return storage.removeJob(jobKey, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not remove job.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public boolean removeJob(final JobKey jobKey) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Boolean>() {
+            @Override
+            public Boolean doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.removeJob(jobKey, jedis);
+            }
+        }, "Could not remove job.");
     }
 
     @Override
-    public boolean removeJobs(List<JobKey> jobKeys) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            boolean removed = jobKeys.size() > 0;
-            for (JobKey jobKey : jobKeys) {
-                removed = storage.removeJob(jobKey, jedis) && removed;
+    public boolean removeJobs(final List<JobKey> jobKeys) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Boolean>() {
+            @Override
+            public Boolean doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                boolean removed = jobKeys.size() > 0;
+                for (JobKey jobKey : jobKeys) {
+                    removed = storage.removeJob(jobKey, jedis) && removed;
+                }
+                return removed;
             }
-            return removed;
-        }
-        catch (Exception e){
-            logger.error("Could not remove jobs.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+        }, "Could not remove jobs.");
     }
 
     /**
@@ -290,22 +303,17 @@ public class RedisJobStore implements JobStore {
      * @return The desired <code>Job</code>, or null if there is no match.
      */
     @Override
-    public JobDetail retrieveJob(JobKey jobKey) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        JobDetail jobDetail = null;
-        try{
-            storage.waitForLock(jedis);
-            jobDetail = storage.retrieveJob(jobKey, jedis);
-        }
-        catch (Exception e) {
-            logger.error("Could not retrieve job.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
-        return  jobDetail;
+    public JobDetail retrieveJob(final JobKey jobKey) throws JobPersistenceException {
+        return doWithLock(new LockCallback<JobDetail>() {
+            @Override
+            public JobDetail doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                try {
+                    return storage.retrieveJob(jobKey, jedis);
+                } catch (ClassNotFoundException e) {
+                    throw new JobPersistenceException("Error retrieving job: " + e.getMessage(), e);
+                }
+            }
+        }, "Could not retrieve job.");
     }
 
     /**
@@ -320,24 +328,14 @@ public class RedisJobStore implements JobStore {
      * @see #pauseTriggers(org.quartz.impl.matchers.GroupMatcher)
      */
     @Override
-    public void storeTrigger(OperableTrigger newTrigger, boolean replaceExisting) throws ObjectAlreadyExistsException, JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            storage.storeTrigger(newTrigger, replaceExisting, jedis);
-        }
-        catch (ObjectAlreadyExistsException e){
-            logger.info("Attempted to store a trigger which already exists.");
-            throw e;
-        }
-        catch (Exception e){
-            logger.error("Could not store trigger.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public void storeTrigger(final OperableTrigger newTrigger, final boolean replaceExisting) throws ObjectAlreadyExistsException, JobPersistenceException {
+        doWithLock(new LockCallbackWithoutResult() {
+            @Override
+            public Void doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                storage.storeTrigger(newTrigger, replaceExisting, jedis);
+                return null;
+            }
+        }, "Could not store trigger.");
     }
 
     /**
@@ -361,43 +359,35 @@ public class RedisJobStore implements JobStore {
      * name & group was found and removed from the store.
      */
     @Override
-    public boolean removeTrigger(TriggerKey triggerKey) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        boolean removed = false;
-        try {
-            storage.waitForLock(jedis);
-            removed = storage.removeTrigger(triggerKey, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not remove trigger.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
-        return removed;
+    public boolean removeTrigger(final TriggerKey triggerKey) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Boolean>() {
+            @Override
+            public Boolean doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                try {
+                    return storage.removeTrigger(triggerKey, jedis);
+                } catch (ClassNotFoundException e) {
+                    throw new JobPersistenceException("Error removing trigger: " + e.getMessage(), e);
+                }
+            }
+        }, "Could not remove trigger.");
     }
 
     @Override
-    public boolean removeTriggers(List<TriggerKey> triggerKeys) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        boolean removed = triggerKeys.size() > 0;
-        try{
-            storage.waitForLock(jedis);
-            for (TriggerKey triggerKey : triggerKeys) {
-                removed = storage.removeTrigger(triggerKey, jedis) && removed;
+    public boolean removeTriggers(final List<TriggerKey> triggerKeys) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Boolean>() {
+            @Override
+            public Boolean doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                boolean removed = triggerKeys.size() > 0;
+                for (TriggerKey triggerKey : triggerKeys) {
+                    try {
+                        removed = storage.removeTrigger(triggerKey, jedis) && removed;
+                    } catch (ClassNotFoundException e) {
+                        throw new JobPersistenceException(e.getMessage(), e);
+                    }
+                }
+                return removed;
             }
-        }
-        catch (Exception e){
-            logger.error("Could not remove trigger.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
-        return removed;
+        }, "Could not remove trigger.");
     }
 
     /**
@@ -411,20 +401,17 @@ public class RedisJobStore implements JobStore {
      * name & group was found and removed from the store.
      */
     @Override
-    public boolean replaceTrigger(TriggerKey triggerKey, OperableTrigger newTrigger) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            return storage.replaceTrigger(triggerKey, newTrigger, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not remove trigger.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public boolean replaceTrigger(final TriggerKey triggerKey, final OperableTrigger newTrigger) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Boolean>() {
+            @Override
+            public Boolean doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                try {
+                    return storage.replaceTrigger(triggerKey, newTrigger, jedis);
+                } catch (ClassNotFoundException e) {
+                    throw new JobPersistenceException(e.getMessage(), e);
+                }
+            }
+        }, "Could not remove trigger.");
     }
 
     /**
@@ -435,22 +422,13 @@ public class RedisJobStore implements JobStore {
      * match.
      */
     @Override
-    public OperableTrigger retrieveTrigger(TriggerKey triggerKey) throws JobPersistenceException {
-        OperableTrigger trigger = null;
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            trigger = storage.retrieveTrigger(triggerKey, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not retrieve trigger.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
-        return trigger;
+    public OperableTrigger retrieveTrigger(final TriggerKey triggerKey) throws JobPersistenceException {
+        return doWithLock(new LockCallback<OperableTrigger>() {
+            @Override
+            public OperableTrigger doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.retrieveTrigger(triggerKey, jedis);
+            }
+        }, "Could not retrieve trigger.");
     }
 
     /**
@@ -462,23 +440,13 @@ public class RedisJobStore implements JobStore {
      * @throws org.quartz.JobPersistenceException
      */
     @Override
-    public boolean checkExists(JobKey jobKey) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            final boolean exists = storage.checkExists(jobKey, jedis);
-            jedisPool.returnResource(jedis);
-            return exists;
-        }
-        catch (JedisConnectionException e){
-            logger.error("Redis connection error.", e);
-            jedisPool.returnBrokenResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        catch (Exception e){
-            logger.error("Could not check if job exists.", e);
-            jedisPool.returnResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
+    public boolean checkExists(final JobKey jobKey) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Boolean>() {
+            @Override
+            public Boolean doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.checkExists(jobKey, jedis);
+            }
+        }, "Could not check if job exists: " + jobKey);
     }
 
     /**
@@ -490,23 +458,13 @@ public class RedisJobStore implements JobStore {
      * @throws org.quartz.JobPersistenceException
      */
     @Override
-    public boolean checkExists(TriggerKey triggerKey) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            final boolean exists = storage.checkExists(triggerKey, jedis);
-            jedisPool.returnResource(jedis);
-            return exists;
-        }
-        catch (JedisConnectionException e){
-            logger.error("Redis connection error.", e);
-            jedisPool.returnBrokenResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        catch (Exception e){
-            logger.error("Could not check if trigger exists.", e);
-            jedisPool.returnResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
+    public boolean checkExists(final TriggerKey triggerKey) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Boolean>() {
+            @Override
+            public Boolean doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.checkExists(triggerKey, jedis);
+            }
+        }, "Could not check if trigger exists: " + triggerKey);
     }
 
     /**
@@ -517,19 +475,17 @@ public class RedisJobStore implements JobStore {
      */
     @Override
     public void clearAllSchedulingData() throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try {
-            storage.waitForLock(jedis);
-            storage.clearAllSchedulingData(jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not clear scheduling data.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+        doWithLock(new LockCallbackWithoutResult() {
+            @Override
+            public Void doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                try {
+                    storage.clearAllSchedulingData(jedis);
+                } catch (ClassNotFoundException e) {
+                    throw new JobPersistenceException("Could not clear scheduling data.");
+                }
+                return null;
+            }
+        }, "Could not clear scheduling data.");
     }
 
     /**
@@ -548,20 +504,14 @@ public class RedisJobStore implements JobStore {
      *                                                 exists, and replaceExisting is set to false.
      */
     @Override
-    public void storeCalendar(String name, Calendar calendar, boolean replaceExisting, boolean updateTriggers) throws ObjectAlreadyExistsException, JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            storage.storeCalendar(name, calendar, replaceExisting, updateTriggers, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not store calendar.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public void storeCalendar(final String name, final Calendar calendar, final boolean replaceExisting, final boolean updateTriggers) throws ObjectAlreadyExistsException, JobPersistenceException {
+        doWithLock(new LockCallbackWithoutResult() {
+            @Override
+            public Void doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                storage.storeCalendar(name, calendar, replaceExisting, updateTriggers, jedis);
+                return null;
+            }
+        }, "Could not store calendar.");
     }
 
     /**
@@ -579,20 +529,13 @@ public class RedisJobStore implements JobStore {
      * was found and removed from the store.
      */
     @Override
-    public boolean removeCalendar(String calName) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try {
-            storage.waitForLock(jedis);
-            return storage.removeCalendar(calName, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not remove calendar.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public boolean removeCalendar(final String calName) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Boolean>() {
+            @Override
+            public Boolean doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.removeCalendar(calName, jedis);
+            }
+        }, "Could not remove calendar.");
     }
 
     /**
@@ -603,22 +546,13 @@ public class RedisJobStore implements JobStore {
      * match.
      */
     @Override
-    public Calendar retrieveCalendar(String calName) throws JobPersistenceException {
-        Calendar calendar = null;
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            calendar = storage.retrieveCalendar(calName, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not retrieve calendar.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
-        return calendar;
+    public Calendar retrieveCalendar(final String calName) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Calendar>() {
+            @Override
+            public Calendar doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.retrieveCalendar(calName, jedis);
+            }
+        }, "Could not retrieve calendar.");
     }
 
     /**
@@ -627,22 +561,12 @@ public class RedisJobStore implements JobStore {
      */
     @Override
     public int getNumberOfJobs() throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            int numberOfJobs = storage.getNumberOfJobs(jedis);
-            jedisPool.returnResource(jedis);
-            return numberOfJobs;
-        }
-        catch (JedisConnectionException e){
-            logger.error("Redis connection error.", e);
-            jedisPool.returnBrokenResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        catch (Exception e){
-            logger.error("Could not get number of jobs.", e);
-            jedisPool.returnResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
+        return  doWithLock(new LockCallback<Integer>() {
+            @Override
+            public Integer doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.getNumberOfJobs(jedis);
+            }
+        }, "Could not get number of jobs.");
     }
 
     /**
@@ -651,22 +575,12 @@ public class RedisJobStore implements JobStore {
      */
     @Override
     public int getNumberOfTriggers() throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            int numberOfJobs = storage.getNumberOfTriggers(jedis);
-            jedisPool.returnResource(jedis);
-            return numberOfJobs;
-        }
-        catch (JedisConnectionException e){
-            logger.error("Redis connection error.", e);
-            jedisPool.returnBrokenResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        catch (Exception e){
-            logger.error("Could not get number of jobs.", e);
-            jedisPool.returnResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
+        return doWithLock(new LockCallback<Integer>() {
+            @Override
+            public Integer doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.getNumberOfTriggers(jedis);
+            }
+        }, "Could not get number of jobs.");
     }
 
     /**
@@ -675,22 +589,12 @@ public class RedisJobStore implements JobStore {
      */
     @Override
     public int getNumberOfCalendars() throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            int numberOfJobs = storage.getNumberOfCalendars(jedis);
-            jedisPool.returnResource(jedis);
-            return numberOfJobs;
-        }
-        catch (JedisConnectionException e){
-            logger.error("Redis connection error.", e);
-            jedisPool.returnBrokenResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        catch (Exception e){
-            logger.error("Could not get number of jobs.", e);
-            jedisPool.returnResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
+        return doWithLock(new LockCallback<Integer>() {
+            @Override
+            public Integer doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.getNumberOfCalendars(jedis);
+            }
+        }, "Could not get number of jobs.");
     }
 
     /**
@@ -705,24 +609,13 @@ public class RedisJobStore implements JobStore {
      * @param matcher the matcher for job key comparison
      */
     @Override
-    public Set<JobKey> getJobKeys(GroupMatcher<JobKey> matcher) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.lock(jedis);
-            return storage.getJobKeys(matcher, jedis);
-        }
-        catch (JedisConnectionException e){
-            logger.error("Redis connection error.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        catch (Exception e){
-            logger.error("Could not retrieve JobKeys.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public Set<JobKey> getJobKeys(final GroupMatcher<JobKey> matcher) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Set<JobKey>>() {
+            @Override
+            public Set<JobKey> doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.getJobKeys(matcher, jedis);
+            }
+        }, "Could not retrieve JobKeys.");
     }
 
     /**
@@ -737,23 +630,13 @@ public class RedisJobStore implements JobStore {
      * @param matcher the matcher with which to compare trigger groups
      */
     @Override
-    public Set<TriggerKey> getTriggerKeys(GroupMatcher<TriggerKey> matcher) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            Set<TriggerKey> triggerKeys = storage.getTriggerKeys(matcher, jedis);
-            jedisPool.returnResource(jedis);
-            return triggerKeys;
-        }
-        catch (JedisConnectionException e){
-            logger.error("Redis connection error.", e);
-            jedisPool.returnBrokenResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        catch (Exception e){
-            logger.error("Could not retrieve TriggerKeys.", e);
-            jedisPool.returnResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
+    public Set<TriggerKey> getTriggerKeys(final GroupMatcher<TriggerKey> matcher) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Set<TriggerKey>>() {
+            @Override
+            public Set<TriggerKey> doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.getTriggerKeys(matcher, jedis);
+            }
+        }, "Could not retrieve TriggerKeys.");
     }
 
     /**
@@ -767,22 +650,12 @@ public class RedisJobStore implements JobStore {
      */
     @Override
     public List<String> getJobGroupNames() throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            List<String> jobGroupNames = storage.getJobGroupNames(jedis);
-            jedisPool.returnResource(jedis);
-            return jobGroupNames;
-        }
-        catch (JedisConnectionException e){
-            logger.error("Redis connection error.", e);
-            jedisPool.returnBrokenResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        catch (Exception e){
-            logger.error("Could not retrieve job group names.", e);
-            jedisPool.returnResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
+        return doWithLock(new LockCallback<List<String>>() {
+            @Override
+            public List<String> doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.getJobGroupNames(jedis);
+            }
+        }, "Could not retrieve job group names.");
     }
 
     /**
@@ -796,22 +669,12 @@ public class RedisJobStore implements JobStore {
      */
     @Override
     public List<String> getTriggerGroupNames() throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            List<String> triggerGroupNames = storage.getTriggerGroupNames(jedis);
-            jedisPool.returnResource(jedis);
-            return triggerGroupNames;
-        }
-        catch (JedisConnectionException e){
-            logger.error("Redis connection error.", e);
-            jedisPool.returnBrokenResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        catch (Exception e){
-            logger.error("Could not retrieve trigger group names.", e);
-            jedisPool.returnResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
+        return doWithLock(new LockCallback<List<String>>() {
+            @Override
+            public List<String> doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.getTriggerGroupNames(jedis);
+            }
+        }, "Could not retrieve trigger group names.");
     }
 
     /**
@@ -825,22 +688,12 @@ public class RedisJobStore implements JobStore {
      */
     @Override
     public List<String> getCalendarNames() throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            List<String> calendarNames = storage.getCalendarNames(jedis);
-            jedisPool.returnResource(jedis);
-            return calendarNames;
-        }
-        catch (JedisConnectionException e){
-            logger.error("Redis connection error.", e);
-            jedisPool.returnBrokenResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        catch (Exception e){
-            logger.error("Could not retrieve calendar names.", e);
-            jedisPool.returnResource(jedis);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
+        return doWithLock(new LockCallback<List<String>>() {
+            @Override
+            public List<String> doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.getCalendarNames(jedis);
+            }
+        }, "Could not retrieve calendar names.");
     }
 
     /**
@@ -853,22 +706,13 @@ public class RedisJobStore implements JobStore {
      * @param jobKey the key of the job for which to retrieve triggers
      */
     @Override
-    public List<OperableTrigger> getTriggersForJob(JobKey jobKey) throws JobPersistenceException {
-        List<OperableTrigger> triggers = new ArrayList<>();
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            triggers = storage.getTriggersForJob(jobKey, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not retrieve triggers for job.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
-        return triggers;
+    public List<OperableTrigger> getTriggersForJob(final JobKey jobKey) throws JobPersistenceException {
+        return doWithLock(new LockCallback<List<OperableTrigger>>() {
+            @Override
+            public List<OperableTrigger> doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.getTriggersForJob(jobKey, jedis);
+            }
+        }, "Could not retrieve triggers for job.");
     }
 
     /**
@@ -878,20 +722,13 @@ public class RedisJobStore implements JobStore {
      * @see org.quartz.Trigger.TriggerState
      */
     @Override
-    public Trigger.TriggerState getTriggerState(TriggerKey triggerKey) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            return storage.getTriggerState(triggerKey, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not retrieve trigger state.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public Trigger.TriggerState getTriggerState(final TriggerKey triggerKey) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Trigger.TriggerState>() {
+            @Override
+            public Trigger.TriggerState doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.getTriggerState(triggerKey, jedis);
+            }
+        }, "Could not retrieve trigger state.");
     }
 
     /**
@@ -901,20 +738,14 @@ public class RedisJobStore implements JobStore {
      * @see #resumeTrigger(org.quartz.TriggerKey)
      */
     @Override
-    public void pauseTrigger(TriggerKey triggerKey) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            storage.pauseTrigger(triggerKey, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not pause trigger.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public void pauseTrigger(final TriggerKey triggerKey) throws JobPersistenceException {
+        doWithLock(new LockCallbackWithoutResult() {
+            @Override
+            public Void doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                storage.pauseTrigger(triggerKey, jedis);
+                return null;
+            }
+        }, "Could not pause trigger.");
     }
 
     /**
@@ -931,20 +762,13 @@ public class RedisJobStore implements JobStore {
      * @param matcher a trigger group matcher
      */
     @Override
-    public Collection<String> pauseTriggers(GroupMatcher<TriggerKey> matcher) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            return storage.pauseTriggers(matcher, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not pause triggers.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public Collection<String> pauseTriggers(final GroupMatcher<TriggerKey> matcher) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Collection<String>>() {
+            @Override
+            public Collection<String> doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.pauseTriggers(matcher, jedis);
+            }
+        }, "Could not pause triggers.");
     }
 
     /**
@@ -955,20 +779,14 @@ public class RedisJobStore implements JobStore {
      * @see #resumeJob(org.quartz.JobKey)
      */
     @Override
-    public void pauseJob(JobKey jobKey) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            storage.pauseJob(jobKey, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not pause job.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public void pauseJob(final JobKey jobKey) throws JobPersistenceException {
+        doWithLock(new LockCallbackWithoutResult() {
+            @Override
+            public Void doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                storage.pauseJob(jobKey, jedis);
+                return null;
+            }
+        }, "Could not pause job.");
     }
 
     /**
@@ -985,20 +803,13 @@ public class RedisJobStore implements JobStore {
      * @see #resumeJobs(org.quartz.impl.matchers.GroupMatcher)
      */
     @Override
-    public Collection<String> pauseJobs(GroupMatcher<JobKey> groupMatcher) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            return storage.pauseJobs(groupMatcher, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not pause jobs.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public Collection<String> pauseJobs(final GroupMatcher<JobKey> groupMatcher) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Collection<String>>() {
+            @Override
+            public Collection<String> doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.pauseJobs(groupMatcher, jedis);
+            }
+        }, "Could not pause jobs.");
     }
 
     /**
@@ -1014,20 +825,14 @@ public class RedisJobStore implements JobStore {
      * @see #pauseTrigger(org.quartz.TriggerKey)
      */
     @Override
-    public void resumeTrigger(TriggerKey triggerKey) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            storage.resumeTrigger(triggerKey, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not resume trigger.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public void resumeTrigger(final TriggerKey triggerKey) throws JobPersistenceException {
+        doWithLock(new LockCallbackWithoutResult() {
+            @Override
+            public Void doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                storage.resumeTrigger(triggerKey, jedis);
+                return null;
+            }
+        }, "Could not resume trigger.");
     }
 
     /**
@@ -1043,35 +848,23 @@ public class RedisJobStore implements JobStore {
      * @see #pauseTriggers(org.quartz.impl.matchers.GroupMatcher)
      */
     @Override
-    public Collection<String> resumeTriggers(GroupMatcher<TriggerKey> matcher) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            return storage.resumeTriggers(matcher, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not resume trigger group(s).", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public Collection<String> resumeTriggers(final GroupMatcher<TriggerKey> matcher) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Collection<String>>() {
+            @Override
+            public Collection<String> doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.resumeTriggers(matcher, jedis);
+            }
+        }, "Could not resume trigger group(s).");
     }
 
     @Override
     public Set<String> getPausedTriggerGroups() throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            return storage.getPausedTriggerGroups(jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not retrieve paused trigger groups.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            jedisPool.returnResource(jedis);
-        }
+        return doWithLock(new LockCallback<Set<String>>() {
+            @Override
+            public Set<String> doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.getPausedTriggerGroups(jedis);
+            }
+        }, "Could not retrieve paused trigger groups.");
     }
 
     /**
@@ -1088,20 +881,14 @@ public class RedisJobStore implements JobStore {
      * @see #pauseJob(org.quartz.JobKey)
      */
     @Override
-    public void resumeJob(JobKey jobKey) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            storage.resumeJob(jobKey, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not resume job.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public void resumeJob(final JobKey jobKey) throws JobPersistenceException {
+        doWithLock(new LockCallbackWithoutResult() {
+            @Override
+            public Void doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                storage.resumeJob(jobKey, jedis);
+                return null;
+            }
+        }, "Could not resume job.");
     }
 
     /**
@@ -1118,20 +905,13 @@ public class RedisJobStore implements JobStore {
      * @see #pauseJobs(org.quartz.impl.matchers.GroupMatcher)
      */
     @Override
-    public Collection<String> resumeJobs(GroupMatcher<JobKey> matcher) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            return storage.resumeJobs(matcher, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not resume jobs.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public Collection<String> resumeJobs(final GroupMatcher<JobKey> matcher) throws JobPersistenceException {
+        return doWithLock(new LockCallback<Collection<String>>() {
+            @Override
+            public Collection<String> doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                return storage.resumeJobs(matcher, jedis);
+            }
+        }, "Could not resume jobs.");
     }
 
     /**
@@ -1148,19 +928,13 @@ public class RedisJobStore implements JobStore {
      */
     @Override
     public void pauseAll() throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            storage.pauseAll(jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not pause all triggers.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+        doWithLock(new LockCallbackWithoutResult() {
+            @Override
+            public Void doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                storage.pauseAll(jedis);
+                return null;
+            }
+        }, "Could not pause all triggers.");
     }
 
     /**
@@ -1176,19 +950,13 @@ public class RedisJobStore implements JobStore {
      */
     @Override
     public void resumeAll() throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            storage.resumeAll(jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not resume all triggers.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+        doWithLock(new LockCallbackWithoutResult() {
+            @Override
+            public Void doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                storage.resumeAll(jedis);
+                return null;
+            }
+        }, "Could not resume all triggers.");
     }
 
     /**
@@ -1202,20 +970,17 @@ public class RedisJobStore implements JobStore {
      * @param timeWindow  @see #releaseAcquiredTrigger(Trigger)
      */
     @Override
-    public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, long timeWindow) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            return storage.acquireNextTriggers(noLaterThan, maxCount, timeWindow, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not acquire next triggers.", e);
-            throw new JobPersistenceException(e.getMessage(), e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
+    public List<OperableTrigger> acquireNextTriggers(final long noLaterThan, final int maxCount, final long timeWindow) throws JobPersistenceException {
+        return doWithLock(new LockCallback<List<OperableTrigger>>() {
+            @Override
+            public List<OperableTrigger> doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                try {
+                    return storage.acquireNextTriggers(noLaterThan, maxCount, timeWindow, jedis);
+                } catch (ClassNotFoundException e) {
+                    throw new JobPersistenceException(e.getMessage(), e);
+                }
+            }
+        }, "Could not acquire next triggers.");
     }
 
     /**
@@ -1227,17 +992,15 @@ public class RedisJobStore implements JobStore {
      */
     @Override
     public void releaseAcquiredTrigger(OperableTrigger trigger) {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            storage.releaseAcquiredTrigger(trigger, jedis);
-        }
-        catch (Exception e){
+        try {
+            doWithLock(new LockCallbackWithoutResult() {
+                @Override
+                public Void doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                    return null;
+                }
+            }, "Could not release acquired trigger.");
+        } catch (JobPersistenceException e) {
             logger.error("Could not release acquired trigger.", e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
         }
     }
 
@@ -1253,21 +1016,17 @@ public class RedisJobStore implements JobStore {
      * could be fired.
      */
     @Override
-    public List<TriggerFiredResult> triggersFired(List<OperableTrigger> triggers) throws JobPersistenceException {
-        Jedis jedis = jedisPool.getResource();
-        List<TriggerFiredResult> result = new ArrayList<>();
-        try {
-            storage.waitForLock(jedis);
-            result = storage.triggersFired(triggers, jedis);
-        }
-        catch (Exception e){
-            logger.error("Could not set triggers as fired.", e);
-        }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
-        }
-        return result;
+    public List<TriggerFiredResult> triggersFired(final List<OperableTrigger> triggers) throws JobPersistenceException {
+        return doWithLock(new LockCallback<List<TriggerFiredResult>>() {
+            @Override
+            public List<TriggerFiredResult> doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                try {
+                    return storage.triggersFired(triggers, jedis);
+                } catch (ClassNotFoundException e) {
+                    throw new JobPersistenceException(e.getMessage(), e);
+                }
+            }
+        }, "Could not set triggers as fired.");
     }
 
     /**
@@ -1283,20 +1042,89 @@ public class RedisJobStore implements JobStore {
      * @param triggerInstCode the trigger completion code
      */
     @Override
-    public void triggeredJobComplete(OperableTrigger trigger, JobDetail jobDetail, Trigger.CompletedExecutionInstruction triggerInstCode) {
-        Jedis jedis = jedisPool.getResource();
-        try{
-            storage.waitForLock(jedis);
-            storage.triggeredJobComplete(trigger, jobDetail, triggerInstCode, jedis);
-        }
-        catch (Exception e){
+    public void triggeredJobComplete(final OperableTrigger trigger, final JobDetail jobDetail, final Trigger.CompletedExecutionInstruction triggerInstCode) {
+        try {
+            doWithLock(new LockCallbackWithoutResult() {
+                @Override
+                public Void doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                    try {
+                        storage.triggeredJobComplete(trigger, jobDetail, triggerInstCode, jedis);
+                    } catch (ClassNotFoundException e) {
+                        logger.error("Could not handle job completion.", e);
+                    }
+                    return null;
+                }
+            });
+        } catch (JobPersistenceException e) {
             logger.error("Could not handle job completion.", e);
         }
-        finally {
-            storage.unlock(jedis);
-            jedisPool.returnResource(jedis);
+    }
+
+
+    /**
+     * Perform Redis operations while possessing lock
+     * @param callback operation(s) to be performed during lock
+     * @param <T> return type
+     * @return response from callback, if any
+     * @throws JobPersistenceException
+     */
+    private <T> T doWithLock(LockCallback<T> callback) throws JobPersistenceException {
+        return doWithLock(callback, null);
+    }
+
+
+    /**
+     * Perform a redis operation while lock is acquired
+     * @param callback a callback containing the actions to perform during lock
+     * @param errorMessage optional error message to include in exception should an error arise
+     * @param <T> return class
+     * @return the result of the actions performed while locked, if any
+     * @throws JobPersistenceException
+     */
+    private <T, B extends JedisCommands & Closeable> T doWithLock(LockCallback<T> callback, String errorMessage) throws JobPersistenceException {
+        B jedis = null;
+        try {
+            jedis = getResource();
+            try {
+                storage.waitForLock(jedis);
+                return callback.doWithLock(jedis);
+            } catch (ObjectAlreadyExistsException e) {
+                throw e;
+            } catch (Exception e) {
+                if (errorMessage == null || errorMessage.isEmpty()) {
+                    errorMessage = "Job storage error.";
+                }
+                throw new JobPersistenceException(errorMessage, e);
+            } finally {
+                storage.unlock(jedis);
+            }
+        } finally {
+            if (jedis != null && jedis instanceof Jedis) {
+                // only close if we're not using a JedisCluster instance
+                try {
+                    jedis.close();
+                } catch (IOException e) {
+                    logger.error("Error attempting to close Jedis resource.", e);
+                }
+            }
         }
     }
+
+
+    private <B extends JedisCommands & Closeable> B getResource() throws JobPersistenceException {
+        if (jedisCluster != null) {
+            return (B) jedisCluster;
+        } else {
+            return (B) jedisPool.getResource();
+        }
+    }
+
+
+    private interface LockCallback<T> {
+        T doWithLock(JedisCommands jedis) throws JobPersistenceException;
+    }
+
+    private abstract class LockCallbackWithoutResult implements LockCallback<Void> {}
 
     public void setLockTimeout(int lockTimeout) {
         this.lockTimeout = lockTimeout;
@@ -1318,10 +1146,6 @@ public class RedisJobStore implements JobStore {
         setPort(Integer.valueOf(port));
     }
 
-    public void setDatabase(short database) {
-        this.database = database;
-    }
-
     public void setDatabase(int database){
         this.database = (short) database;
     }
@@ -1336,6 +1160,10 @@ public class RedisJobStore implements JobStore {
 
     public void setKeyDelimiter(String keyDelimiter) {
         this.keyDelimiter = keyDelimiter;
+    }
+
+    public void setRedisCluster(boolean clustered) {
+        this.redisCluster = clustered;
     }
 
     /**
