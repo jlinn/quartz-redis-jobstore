@@ -14,8 +14,6 @@ import org.slf4j.LoggerFactory;
 import redis.clients.jedis.*;
 import redis.clients.util.Pool;
 
-import java.io.Closeable;
-import java.io.IOException;
 import java.util.*;
 
 /**
@@ -1081,8 +1079,8 @@ public class RedisJobStore implements JobStore {
      * @return the result of the actions performed while locked, if any
      * @throws JobPersistenceException
      */
-    private <T, B extends JedisCommands & Closeable> T doWithLock(LockCallback<T> callback, String errorMessage) throws JobPersistenceException {
-        B jedis = null;
+    private <T> T doWithLock(LockCallback<T> callback, String errorMessage) throws JobPersistenceException {
+        JedisCommands jedis = null;
         try {
             jedis = getResource();
             try {
@@ -1101,21 +1099,17 @@ public class RedisJobStore implements JobStore {
         } finally {
             if (jedis != null && jedis instanceof Jedis) {
                 // only close if we're not using a JedisCluster instance
-                try {
-                    jedis.close();
-                } catch (IOException e) {
-                    logger.error("Error attempting to close Jedis resource.", e);
-                }
+                ((Jedis) jedis).close();
             }
         }
     }
 
 
-    private <B extends JedisCommands & Closeable> B getResource() throws JobPersistenceException {
+    private JedisCommands getResource() throws JobPersistenceException {
         if (jedisCluster != null) {
-            return (B) jedisCluster;
+            return jedisCluster;
         } else {
-            return (B) jedisPool.getResource();
+            return jedisPool.getResource();
         }
     }
 
