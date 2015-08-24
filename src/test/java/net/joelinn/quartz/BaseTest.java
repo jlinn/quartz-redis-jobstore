@@ -52,7 +52,6 @@ public abstract class BaseTest {
         logger.debug("Attempting to start embedded Redis server on port " + port);
         redisServer = RedisServer.builder()
                 .port(port)
-                .setting("maxheap 1000000000")
                 .build();
         redisServer.start();
         final short database = 1;
