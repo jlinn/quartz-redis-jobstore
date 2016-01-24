@@ -49,6 +49,11 @@ public class RedisJobStore implements JobStore {
     protected short database = 0;
 
     /**
+     * Redis sentinel master group name
+     */
+    protected String masterGroupName;
+
+    /**
      * Redis key prefix
      */
     protected String keyPrefix = "";
@@ -63,6 +68,14 @@ public class RedisJobStore implements JobStore {
      * strings will be used as hostanmes for the cluster nodes.
      */
     private boolean redisCluster;
+
+    /**
+     * Set to true if a {@link JedisSentinelPool} should be used. {@link #host} will be split on ',', and the
+     * resulting strings will be used as hostnames for the sentinel nodes. {@link #masterGroupName} will be
+     * used as the master group name.
+     */
+    private boolean redisSentinel;
+
 
     protected String instanceId;
 
@@ -98,24 +111,28 @@ public class RedisJobStore implements JobStore {
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
         if (redisCluster && jedisCluster == null) {
-            Set<HostAndPort> nodes = new HashSet<>();
-            for (String hostName : host.split(",")) {
-                int hostPort = port;
-                if (hostName.contains(":")) {
-                    String[] parts = hostName.split(":");
-                    hostName = parts[0];
-                    hostPort = Integer.valueOf(parts[1]);
-                }
-                nodes.add(new HostAndPort(hostName, hostPort));
-            }
+            Set<HostAndPort> nodes = buildNodesSetFromHost();
             jedisCluster = new JedisCluster(nodes);
             storage = new RedisClusterStorage(redisSchema, mapper, signaler, instanceId, lockTimeout);
         } else if (jedisPool == null) {
             JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
-            if (logger.isDebugEnabled()) {
-                logger.debug("Instantiating JedisPool using host " + host + " and port " + port);
+            jedisPoolConfig.setTestOnBorrow(true);
+            if (redisSentinel) {
+                Set<HostAndPort> nodes = buildNodesSetFromHost();
+                Set<String> nodesAsStrings = new HashSet<>();
+                for (HostAndPort node : nodes) {
+                    nodesAsStrings.add(node.toString());
+                }
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Instantiating JedisSentinelPool using master " + masterGroupName + " and hosts " + host);
+                }
+                jedisPool = new JedisSentinelPool(masterGroupName, nodesAsStrings, jedisPoolConfig);
+            } else {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Instantiating JedisPool using host " + host + " and port " + port);
+                }
+                jedisPool = new JedisPool(jedisPoolConfig, host, port, Protocol.DEFAULT_TIMEOUT, null, database);
             }
-            jedisPool = new JedisPool(jedisPoolConfig, host, port, Protocol.DEFAULT_TIMEOUT, null, database);
             storage = new RedisStorage(redisSchema, mapper, signaler, instanceId, lockTimeout);
         }
     }
@@ -1160,6 +1177,14 @@ public class RedisJobStore implements JobStore {
         this.redisCluster = clustered;
     }
 
+    public void setRedisSentinel(boolean sentinel) {
+        this.redisSentinel = sentinel;
+    }
+
+    public void setMasterGroupName(String masterGroupName) {
+        this.masterGroupName = masterGroupName;
+    }
+
     /**
      * Inform the <code>JobStore</code> of the Scheduler instance's Id,
      * prior to initialize being invoked.
@@ -1194,4 +1219,19 @@ public class RedisJobStore implements JobStore {
     public void setThreadPoolSize(int poolSize) {
         // nothing to do
     }
+
+    private Set<HostAndPort> buildNodesSetFromHost() {
+        Set<HostAndPort> nodes = new HashSet<>();
+        for (String hostName : host.split(",")) {
+            int hostPort = port;
+            if (hostName.contains(":")) {
+                String[] parts = hostName.split(":");
+                hostName = parts[0];
+                hostPort = Integer.valueOf(parts[1]);
+            }
+            nodes.add(new HostAndPort(hostName, hostPort));
+        }
+        return nodes;
+    }
+
 }

@@ -6,6 +6,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.quartz.Calendar;
 import org.quartz.*;
+import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.impl.calendar.WeeklyCalendar;
 import org.quartz.impl.triggers.CronTriggerImpl;
 import org.quartz.spi.SchedulerSignaler;
@@ -15,12 +16,18 @@ import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 import redis.clients.jedis.Protocol;
+import redis.clients.util.Pool;
 import redis.embedded.RedisServer;
 
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.*;
 
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.collection.IsMapContaining.hasKey;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -32,7 +39,7 @@ public abstract class BaseTest {
 
     protected RedisServer redisServer;
 
-    protected JedisPool jedisPool;
+    protected Pool<Jedis> jedisPool;
 
     protected RedisJobStore jobStore;
 
@@ -55,7 +62,9 @@ public abstract class BaseTest {
                 .build();
         redisServer.start();
         final short database = 1;
-        jedisPool = new JedisPool(new JedisPoolConfig(), host, port, Protocol.DEFAULT_TIMEOUT, null, database);
+        JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
+        jedisPoolConfig.setTestOnBorrow(true);
+        jedisPool = new JedisPool(jedisPoolConfig, host, port, Protocol.DEFAULT_TIMEOUT, null, database);
 
         jobStore = new RedisJobStore();
         jobStore.setHost(host);
@@ -169,5 +178,33 @@ public abstract class BaseTest {
         Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = new HashMap<>();
         jobsAndTriggers.put(job, triggersSet);
         jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
+    }
+
+    protected void testJobStore(Properties quartzProperties) throws SchedulerException {
+        StdSchedulerFactory schedulerFactory = new StdSchedulerFactory();
+        schedulerFactory.initialize(quartzProperties);
+
+        Scheduler scheduler = schedulerFactory.getScheduler();
+        scheduler.start();
+
+        JobDetail job = getJobDetail("testJob1", "testJobGroup1");
+        CronTriggerImpl trigger = getCronTrigger("testTrigger1", "testTriggerGroup1", job.getKey(), "0/5 * * * * ?");
+
+        scheduler.scheduleJob(job, trigger);
+
+        JobDetail retrievedJob = jobStore.retrieveJob(job.getKey());
+        assertThat(retrievedJob, not(nullValue()));
+        assertThat(retrievedJob.getJobDataMap(), hasKey("timeout"));
+
+        CronTriggerImpl retrievedTrigger = (CronTriggerImpl) jobStore.retrieveTrigger(trigger.getKey());
+        assertThat(retrievedTrigger, not(nullValue()));
+        assertEquals(trigger.getCronExpression(), retrievedTrigger.getCronExpression());
+
+        scheduler.deleteJob(job.getKey());
+
+        assertThat(jobStore.retrieveJob(job.getKey()), nullValue());
+        assertThat(jobStore.retrieveTrigger(trigger.getKey()), nullValue());
+
+        scheduler.shutdown();
     }
 }

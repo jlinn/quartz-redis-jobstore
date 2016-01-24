@@ -1,6 +1,8 @@
 package net.joelinn.quartz;
 
+import com.google.common.base.Joiner;
 import net.joelinn.quartz.jobstore.RedisJobStore;
+import net.joelinn.quartz.jobstore.RedisJobStoreSchema;
 import org.junit.Test;
 import org.quartz.JobDetail;
 import org.quartz.Scheduler;
@@ -8,6 +10,12 @@ import org.quartz.SchedulerException;
 import org.quartz.Trigger;
 import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.impl.triggers.CronTriggerImpl;
+import org.quartz.spi.JobStore;
+import org.quartz.spi.SchedulerSignaler;
+import redis.clients.jedis.*;
+import redis.clients.util.Pool;
+import redis.embedded.RedisCluster;
+import redis.embedded.util.JedisUtil;
 
 import java.util.Map;
 import java.util.Properties;
@@ -18,6 +26,7 @@ import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.mock;
 
 /**
  * Joe Linn
@@ -38,7 +47,6 @@ public class RedisJobStoreTest extends BaseTest{
 
         testJobStore(quartzProperties);
     }
-
 
     @Test
     public void clearAllSchedulingData() throws Exception {
@@ -61,30 +69,4 @@ public class RedisJobStoreTest extends BaseTest{
     }
 
 
-    private void testJobStore(Properties quartzProperties) throws SchedulerException {
-        StdSchedulerFactory schedulerFactory = new StdSchedulerFactory();
-        schedulerFactory.initialize(quartzProperties);
-
-        Scheduler scheduler = schedulerFactory.getScheduler();
-        scheduler.start();
-
-        JobDetail job = getJobDetail("testJob1", "testJobGroup1");
-        CronTriggerImpl trigger = getCronTrigger("testTrigger1", "testTriggerGroup1", job.getKey(), "0/5 * * * * ?");
-
-        scheduler.scheduleJob(job, trigger);
-
-        // ensure that the job was scheduled
-        JobDetail retrievedJob = jobStore.retrieveJob(job.getKey());
-        assertThat(retrievedJob, not(nullValue()));
-        assertThat(retrievedJob.getJobDataMap(), hasKey("timeout"));
-
-        CronTriggerImpl retrievedTrigger = (CronTriggerImpl) jobStore.retrieveTrigger(trigger.getKey());
-        assertThat(retrievedTrigger, not(nullValue()));
-        assertEquals(trigger.getCronExpression(), retrievedTrigger.getCronExpression());
-
-        scheduler.deleteJob(job.getKey());
-
-        assertThat(jobStore.retrieveJob(job.getKey()), nullValue());
-        assertThat(jobStore.retrieveTrigger(trigger.getKey()), nullValue());
-    }
 }
