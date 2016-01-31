@@ -93,5 +93,4 @@ public class RedisSentinelJobStoreTest extends BaseTest {
         quartzProperties.setProperty("org.quartz.jobStore.database", "1");
         testJobStore(quartzProperties);
     }
-
 }

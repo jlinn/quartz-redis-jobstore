@@ -76,7 +76,6 @@ public class RedisJobStore implements JobStore {
      */
     private boolean redisSentinel;
 
-
     protected String instanceId;
 
     protected AbstractRedisStorage storage;

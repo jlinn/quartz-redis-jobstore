@@ -40,6 +40,12 @@ org.quartz.jobStore.port = <your redis port>
 # enable Redis clustering (optional, defaults to false)
 org.quartz.jobStore.redisCluster = <true or false> 
 
+# enable Redis sentinel (optional, defaults to false)
+org.quartz.jobStore.redisSentinel = <true or false>
+
+# set the sentinel master group name (required if redisSentinel = true)
+org.quartz.jobStore.masterGroupName = <your master group name>
+
 # set the redis database (optional, defaults to 0)
 org.quartz.jobStore.database: <your redis db>
 
