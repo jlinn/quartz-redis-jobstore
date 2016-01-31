@@ -1,4 +1,7 @@
 # Changelog
+### 2016-01-31
+* Add support for Redis Sentinel
+
 ### 2015-08-19
 * Add support for [Jedis cluster](https://github.com/xetorthio/jedis#jedis-cluster).
 * Allow a pre-configured Pool<Jedis> or JedisCluster to be passed in to RedisJobStore.

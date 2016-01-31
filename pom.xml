@@ -4,7 +4,7 @@
 
     <groupId>net.joelinn</groupId>
     <artifactId>quartz-redis-jobstore</artifactId>
-    <version>1.0.1-SNAPSHOT</version>
+    <version>1.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>quartz-redis-jobstore</name>
     <description>A Quartz Scheduler JobStore using Redis.</description>
