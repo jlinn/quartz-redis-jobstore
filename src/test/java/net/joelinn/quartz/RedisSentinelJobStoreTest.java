@@ -9,10 +9,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.quartz.SchedulerConfigException;
 import org.quartz.spi.SchedulerSignaler;
-import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPoolConfig;
 import redis.clients.jedis.JedisSentinelPool;
-import redis.clients.util.Pool;
 import redis.embedded.RedisCluster;
 import redis.embedded.util.JedisUtil;
 
@@ -46,7 +44,7 @@ public class RedisSentinelJobStoreTest extends BaseTest {
 
         Set<String> jedisSentinelHosts = JedisUtil.sentinelHosts(redisCluster);
 
-        joinedHosts = Joiner.on(",").join(jedisSentinelHosts).toString();
+        joinedHosts = Joiner.on(",").join(jedisSentinelHosts);
 
         final short database = 1;
         JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();

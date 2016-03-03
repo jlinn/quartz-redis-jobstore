@@ -27,7 +27,7 @@ public class CronTriggerMixinTest {
     @Before
     public void setUp(){
         mapper = new ObjectMapper();
-        mapper.addMixInAnnotations(CronTrigger.class, CronTriggerMixin.class);
+        mapper.addMixIn(CronTrigger.class, CronTriggerMixin.class);
     }
 
     @Test

@@ -1005,11 +1005,12 @@ public class RedisJobStore implements JobStore {
      * @param trigger the trigger to be released
      */
     @Override
-    public void releaseAcquiredTrigger(OperableTrigger trigger) {
+    public void releaseAcquiredTrigger(final OperableTrigger trigger) {
         try {
             doWithLock(new LockCallbackWithoutResult() {
                 @Override
                 public Void doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                    storage.releaseAcquiredTrigger(trigger, jedis);
                     return null;
                 }
             }, "Could not release acquired trigger.");

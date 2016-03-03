@@ -27,7 +27,7 @@ public class JobDetailMixinTest {
     @Before
     public void setUp(){
         mapper = new ObjectMapper();
-        mapper.addMixInAnnotations(JobDetail.class, JobDetailMixin.class);
+        mapper.addMixIn(JobDetail.class, JobDetailMixin.class);
     }
 
     @Test

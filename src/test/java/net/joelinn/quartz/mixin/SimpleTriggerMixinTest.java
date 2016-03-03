@@ -27,7 +27,7 @@ public class SimpleTriggerMixinTest {
     @Before
     public void setUp(){
         mapper = new ObjectMapper();
-        mapper.addMixInAnnotations(SimpleTrigger.class, TriggerMixin.class);
+        mapper.addMixIn(SimpleTrigger.class, TriggerMixin.class);
     }
 
     @Test

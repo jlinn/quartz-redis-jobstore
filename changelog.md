@@ -1,4 +1,7 @@
 # Changelog
+### 2016-03-02
+* Fix a bug where acquired triggers were not being released.
+
 ### 2016-01-31
 * Add support for Redis Sentinel
 
