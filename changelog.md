@@ -1,4 +1,7 @@
 # Changelog
+### 2016-03-17
+* Allow Redis db to be set when using Sentinel
+
 ### 2016-03-02
 * Fix a bug where acquired triggers were not being released.
 
