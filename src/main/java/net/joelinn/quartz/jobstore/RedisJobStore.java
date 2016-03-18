@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import net.joelinn.quartz.jobstore.mixin.CronTriggerMixin;
 import net.joelinn.quartz.jobstore.mixin.JobDetailMixin;
 import net.joelinn.quartz.jobstore.mixin.TriggerMixin;
+import org.apache.commons.pool2.PooledObjectFactory;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.quartz.Calendar;
 import org.quartz.*;
 import org.quartz.impl.matchers.GroupMatcher;
@@ -125,7 +127,7 @@ public class RedisJobStore implements JobStore {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Instantiating JedisSentinelPool using master " + masterGroupName + " and hosts " + host);
                 }
-                jedisPool = new JedisSentinelPool(masterGroupName, nodesAsStrings, jedisPoolConfig);
+                jedisPool = new JedisSentinelPool(masterGroupName, nodesAsStrings, jedisPoolConfig, Protocol.DEFAULT_TIMEOUT, null, database);
             } else {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Instantiating JedisPool using host " + host + " and port " + port);
