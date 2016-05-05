@@ -267,6 +267,12 @@ public class RedisJobStoreSchema {
      * @return a list comprised of the split parts of the given string
      */
     protected List<String> split(final String string){
-        return Arrays.asList(string.split(delimiter));
+        if (null!=prefix){
+            //remove prefix before split
+            return Arrays.asList(string.substring(prefix.length()).split(delimiter));
+        }else{
+            return Arrays.asList(string.split(delimiter));
+        }
+
     }
 }
