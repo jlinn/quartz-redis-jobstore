@@ -34,6 +34,9 @@ org.quartz.jobStore.class = net.joelinn.quartz.jobstore.RedisJobStore
 # set the Redis host (required)
 org.quartz.jobStore.host = <your redis host or a comma-delimited list of host:port if clustered use is desired>
 
+# set the redis password (optional, defaults null)
+org.quartz.jobStore.password = <your redis password>
+
 # set the redis port (optional, defaults to 6379)
 org.quartz.jobStore.port = <your redis port>
 
