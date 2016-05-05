@@ -46,6 +46,11 @@ public class RedisJobStore implements JobStore {
     protected int port = 6379;
 
     /**
+     * Redis password
+     */
+    protected String password;
+
+    /**
      * Redis database
      */
     protected short database = 0;
@@ -127,12 +132,12 @@ public class RedisJobStore implements JobStore {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Instantiating JedisSentinelPool using master " + masterGroupName + " and hosts " + host);
                 }
-                jedisPool = new JedisSentinelPool(masterGroupName, nodesAsStrings, jedisPoolConfig, Protocol.DEFAULT_TIMEOUT, null, database);
+                jedisPool = new JedisSentinelPool(masterGroupName, nodesAsStrings, jedisPoolConfig, Protocol.DEFAULT_TIMEOUT, password, database);
             } else {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Instantiating JedisPool using host " + host + " and port " + port);
                 }
-                jedisPool = new JedisPool(jedisPoolConfig, host, port, Protocol.DEFAULT_TIMEOUT, null, database);
+                jedisPool = new JedisPool(jedisPoolConfig, host, port, Protocol.DEFAULT_TIMEOUT, password, database);
             }
             storage = new RedisStorage(redisSchema, mapper, signaler, instanceId, lockTimeout);
         }
@@ -1185,6 +1190,14 @@ public class RedisJobStore implements JobStore {
 
     public void setMasterGroupName(String masterGroupName) {
         this.masterGroupName = masterGroupName;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 
     /**
