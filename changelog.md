@@ -1,4 +1,7 @@
 # Changelog
+### 2016-05-04
+* Add support for Redis password
+
 ### 2016-03-17
 * Allow Redis db to be set when using Sentinel
 
