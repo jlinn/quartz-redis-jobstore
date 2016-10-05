@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
+import static net.joelinn.quartz.TestUtils.getPort;
 import static org.mockito.Mockito.mock;
 
 public class RedisSentinelJobStoreTest extends BaseTest {
@@ -30,9 +31,9 @@ public class RedisSentinelJobStoreTest extends BaseTest {
 
     @Before
     public void setUpRedis() throws IOException, SchedulerConfigException {
-        final List<Integer> sentinels = Arrays.asList(26739, 26912);
-        final List<Integer> group1 = Arrays.asList(6667, 6668);
-        final List<Integer> group2 = Arrays.asList(6387, 6379);
+        final List<Integer> sentinels = Arrays.asList(getPort(), getPort());
+        final List<Integer> group1 = Arrays.asList(getPort(), getPort());
+        final List<Integer> group2 = Arrays.asList(getPort(), getPort());
         //creates a cluster with 3 sentinels, quorum size of 2 and 3 replication groups, each with one master and one slave
         redisCluster = RedisCluster.builder().sentinelPorts(sentinels).quorumSize(2)
             .serverPorts(group1).replicationGroup("master1", 1)
@@ -73,8 +74,12 @@ public class RedisSentinelJobStoreTest extends BaseTest {
 
     @After
     public void tearDownRedis() throws InterruptedException {
-        jedis.close();
-        jedisPool.close();
+        if (jedis != null) {
+            jedis.close();
+        }
+        if (jedisPool != null) {
+            jedisPool.close();
+        }
         redisCluster.stop();
     }
 

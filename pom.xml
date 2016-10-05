@@ -192,6 +192,7 @@
                 <version>2.5</version>
                 <configuration>
                     <arguments>-Dgpg.passphrase=${gpg.passphrase}</arguments>
+                    <goals>deploy -Dmaven.test.skip=true</goals>
                 </configuration>
             </plugin>
 
