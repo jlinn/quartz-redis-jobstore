@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import net.joelinn.quartz.jobstore.mixin.CronTriggerMixin;
 import net.joelinn.quartz.jobstore.mixin.JobDetailMixin;
 import net.joelinn.quartz.jobstore.mixin.TriggerMixin;
-import org.apache.commons.pool2.PooledObjectFactory;
-import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.quartz.Calendar;
 import org.quartz.*;
 import org.quartz.impl.matchers.GroupMatcher;
@@ -83,6 +81,8 @@ public class RedisJobStore implements JobStore {
      */
     private boolean redisSentinel;
 
+    private int misfireThreshold = 60_000;
+
     protected String instanceId;
 
     protected AbstractRedisStorage storage;
@@ -97,6 +97,11 @@ public class RedisJobStore implements JobStore {
     public RedisJobStore setJedisCluster(JedisCluster jedisCluster) {
         this.jedisCluster = jedisCluster;
         return this;
+    }
+
+
+    public void setMisfireThreshold(int misfireThreshold) {
+        this.misfireThreshold = misfireThreshold;
     }
 
     /**
@@ -141,6 +146,7 @@ public class RedisJobStore implements JobStore {
             }
             storage = new RedisStorage(redisSchema, mapper, signaler, instanceId, lockTimeout);
         }
+        storage.setMisfireThreshold(misfireThreshold);
     }
 
     /**

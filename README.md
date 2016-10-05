@@ -34,6 +34,9 @@ org.quartz.jobStore.class = net.joelinn.quartz.jobstore.RedisJobStore
 # set the Redis host (required)
 org.quartz.jobStore.host = <your redis host or a comma-delimited list of host:port if clustered use is desired>
 
+# set the scheduler's trigger misfire threshold in milliseconds (optional, defaults to 60000)
+org.quartz.jobStore.misfreThreshold = 60000
+
 # set the redis password (optional, defaults null)
 org.quartz.jobStore.password = <your redis password>
 

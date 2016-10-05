@@ -60,6 +60,11 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
         this.lockTimeout = lockTimeout;
     }
 
+    public AbstractRedisStorage setMisfireThreshold(int misfireThreshold) {
+        this.misfireThreshold = misfireThreshold;
+        return this;
+    }
+
     /**
      * Attempt to acquire a lock
      * @return true if lock was successfully acquired; false otherwise

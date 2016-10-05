@@ -20,9 +20,9 @@ import redis.clients.util.Pool;
 import redis.embedded.RedisServer;
 
 import java.io.IOException;
-import java.net.ServerSocket;
 import java.util.*;
 
+import static net.joelinn.quartz.TestUtils.getPort;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -78,14 +78,6 @@ public abstract class BaseTest {
 
         jedis = jedisPool.getResource();
         jedis.flushDB();
-    }
-
-
-    protected int getPort() throws IOException {
-        try (ServerSocket socket = new ServerSocket(0)) {
-            socket.setReuseAddress(true);
-            return socket.getLocalPort();
-        }
     }
 
 
