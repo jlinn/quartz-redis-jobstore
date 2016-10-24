@@ -142,6 +142,10 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
             final String calendarTriggersSetKey = redisSchema.calendarTriggersSetKey(trigger.getCalendarName());
             jedis.sadd(calendarTriggersSetKey, triggerHashKey);
         }
+        if (trigger.getJobDataMap() != null && !trigger.getJobDataMap().isEmpty()) {
+            final String triggerDataMapHashKey = redisSchema.triggerDataMapHashKey(trigger.getKey());
+            jedis.hmset(triggerDataMapHashKey, getStringDataMap(trigger.getJobDataMap()));
+        }
 
         if (exists) {
             // We're overwriting a previously stored instance of this trigger, so clear any existing trigger state.

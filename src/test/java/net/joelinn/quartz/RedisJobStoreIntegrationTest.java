@@ -1,5 +1,6 @@
 package net.joelinn.quartz;
 
+import com.google.common.base.Strings;
 import net.jodah.concurrentunit.Waiter;
 import net.joelinn.quartz.jobstore.RedisJobStore;
 import org.junit.After;
@@ -8,21 +9,30 @@ import org.junit.Test;
 import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.impl.matchers.NameMatcher;
+import org.quartz.simpl.PropertySettingJobFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.util.Pool;
 import redis.embedded.RedisServer;
 
 import java.util.Properties;
 
-import static net.joelinn.quartz.TestUtils.createCronTrigger;
-import static net.joelinn.quartz.TestUtils.createJob;
-import static net.joelinn.quartz.TestUtils.getPort;
+import static net.joelinn.quartz.TestUtils.*;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
 
 /**
  * @author Joe Linn
  *         10/4/2016
  */
 public class RedisJobStoreIntegrationTest {
+    private static final Logger log = LoggerFactory.getLogger(RedisJobStoreIntegrationTest.class);
+
     private RedisServer redisServer;
     private Scheduler scheduler;
+    private Pool<Jedis> jedisPool;
 
     @Before
     public void setUp() throws Exception {
@@ -32,6 +42,8 @@ public class RedisJobStoreIntegrationTest {
                 .port(port)
                 .build();
         redisServer.start();
+
+        jedisPool = new JedisPool(host, port);
 
         Properties config = new Properties();
         config.setProperty("org.quartz.jobStore.class", RedisJobStore.class.getName());
@@ -47,6 +59,9 @@ public class RedisJobStoreIntegrationTest {
     @After
     public void tearDown() throws Exception {
         scheduler.shutdown();
+        if (jedisPool != null) {
+            jedisPool.close();
+        }
         redisServer.stop();
     }
 
@@ -88,6 +103,61 @@ public class RedisJobStoreIntegrationTest {
 
         // wait for MisfireListener.triggerMisfired() to be called
         waiter.await(2500);
+    }
+
+
+    @Test
+    public void testTriggerData() throws Exception {
+        final String jobName = "good";
+        JobDetail jobDetail = createJob(DataJob.class, jobName, "goodGroup");
+
+        final String triggerName = "trigger1";
+        final String everySecond = "* * * * * ?";
+        CronTrigger trigger = createCronTrigger(triggerName, "oneGroup", everySecond);
+        trigger = trigger.getTriggerBuilder()
+                .usingJobData("foo", "bar")
+                .build();
+        scheduler.setJobFactory(new RedisJobFactory());
+        scheduler.scheduleJob(jobDetail, trigger);
+        Waiter waiter = new Waiter();
+        scheduler.getListenerManager().addTriggerListener(new CompleteListener(waiter), NameMatcher.triggerNameEquals(triggerName));
+
+        // wait for CompleteListener.triggerComplete() to be called
+        waiter.await(1500);
+
+        try (Jedis jedis = jedisPool.getResource()) {
+            assertThat(jedis.get("foo"), equalTo("bar"));
+        }
+    }
+
+
+    private class RedisJobFactory extends PropertySettingJobFactory {
+        @Override
+        protected void setBeanProps(Object obj, JobDataMap data) throws SchedulerException {
+            data.put("jedisPool", jedisPool);
+            super.setBeanProps(obj, data);
+        }
+    }
+
+
+    public static class DataJob implements Job {
+        private Pool<Jedis> jedisPool;
+
+        public void setJedisPool(Pool<Jedis> jedisPool) {
+            this.jedisPool = jedisPool;
+        }
+
+        @Override
+        public void execute(JobExecutionContext context) throws JobExecutionException {
+            String foo = context.getTrigger().getJobDataMap().getString("foo");
+            if (!Strings.isNullOrEmpty(foo)) {
+                try (Jedis jedis = jedisPool.getResource()) {
+                    jedis.set("foo", foo);
+                }
+            } else {
+                log.error("Null or empty string retrieved from Redis.");
+            }
+        }
     }
 
 

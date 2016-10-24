@@ -134,6 +134,15 @@ public class RedisJobStoreSchema {
 
     /**
      *
+     * @param triggerKey
+     * @return the redis key associated with the trigger data for the given {@link org.quartz.TriggerKey}
+     */
+    public String triggerDataMapHashKey(final TriggerKey triggerKey){
+        return addPrefix("trigger_data_map" + delimiter + triggerKey.getGroup() + delimiter + triggerKey.getName());
+    }
+
+    /**
+     *
      * @param triggerHashKey the hash key for a trigger
      * @return the {@link org.quartz.TriggerKey} object describing the desired trigger
      */

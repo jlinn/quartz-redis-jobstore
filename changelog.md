@@ -1,4 +1,7 @@
 # Changelog
+### 2016-10-23
+* Add support for storing trigger-specific job data
+
 ### 2016-05-04
 * Add support for Redis password
 

@@ -278,7 +278,14 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
             throw new JobPersistenceException(String.format("Could not find class %s for trigger.", triggerMap.get(TRIGGER_CLASS)), e);
         }
         triggerMap.remove(TRIGGER_CLASS);
-        return (OperableTrigger) mapper.convertValue(triggerMap, triggerClass);
+        OperableTrigger operableTrigger = (OperableTrigger) mapper.convertValue(triggerMap, triggerClass);
+        final Map<String, String> jobData = jedis.hgetAll(redisSchema.triggerDataMapHashKey(triggerKey));
+        if (jobData != null && !jobData.isEmpty()){
+            JobDataMap jobDataMap = new JobDataMap();
+            jobDataMap.putAll(jobData);
+            operableTrigger.setJobDataMap(jobDataMap);
+        }
+        return operableTrigger;
     }
 
     /**

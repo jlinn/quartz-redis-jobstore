@@ -5,6 +5,7 @@ import net.joelinn.quartz.jobstore.RedisJobStoreSchema;
 import net.joelinn.quartz.jobstore.AbstractRedisStorage;
 import net.joelinn.quartz.jobstore.RedisStorage;
 import net.joelinn.quartz.jobstore.RedisTriggerState;
+import org.hamcrest.MatcherAssert;
 import org.junit.Test;
 import org.quartz.*;
 import org.quartz.impl.calendar.WeeklyCalendar;
@@ -16,6 +17,7 @@ import org.quartz.spi.TriggerFiredResult;
 
 import java.util.*;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -35,6 +37,7 @@ public class StoreTriggerTest extends BaseTest{
     @Test
     public void storeTrigger() throws Exception {
         CronTriggerImpl trigger = getCronTrigger();
+        trigger.getJobDataMap().put("foo", "bar");
 
         jobStore.storeTrigger(trigger, false);
 
@@ -49,6 +52,9 @@ public class StoreTriggerTest extends BaseTest{
         assertTrue("The trigger group set key is not a member of the trigger group set.", jedis.sismember(schema.triggerGroupsSet(), schema.triggerGroupSetKey(trigger.getKey())));
         assertTrue(jedis.sismember(schema.triggerGroupSetKey(trigger.getKey()), triggerHashKey));
         assertTrue(jedis.sismember(schema.jobTriggersSetKey(trigger.getJobKey()), triggerHashKey));
+        String triggerDataMapHashKey = schema.triggerDataMapHashKey(trigger.getKey());
+        MatcherAssert.assertThat(jedis.exists(triggerDataMapHashKey), equalTo(true));
+        MatcherAssert.assertThat(jedis.hget(triggerDataMapHashKey, "foo"), equalTo("bar"));
     }
 
     @Test(expected = JobPersistenceException.class)
@@ -83,6 +89,7 @@ public class StoreTriggerTest extends BaseTest{
     public void removeTrigger() throws Exception {
         JobDetail job = getJobDetail();
         CronTriggerImpl trigger1 = getCronTrigger("trigger1", "triggerGroup", job.getKey());
+        trigger1.getJobDataMap().put("foo", "bar");
         CronTriggerImpl trigger2 = getCronTrigger("trigger2", "triggerGroup", job.getKey());
 
         jobStore.storeJob(job, false);
@@ -101,6 +108,7 @@ public class StoreTriggerTest extends BaseTest{
         //  ensure that both the trigger and job were removed
         assertThat(jobStore.retrieveTrigger(trigger2.getKey()), nullValue());
         assertThat(jobStore.retrieveJob(job.getKey()), nullValue());
+        MatcherAssert.assertThat(jedis.exists(schema.triggerDataMapHashKey(trigger1.getKey())), equalTo(false));
     }
 
     @Test

@@ -139,6 +139,7 @@ public class RedisStorage extends AbstractRedisStorage<Jedis> {
         }
         unsetTriggerState(triggerHashKey, jedis);
         jedis.del(triggerHashKey);
+        jedis.del(redisSchema.triggerDataMapHashKey(triggerKey));
         return true;
     }
 
@@ -206,6 +207,10 @@ public class RedisStorage extends AbstractRedisStorage<Jedis> {
         if(trigger.getCalendarName() != null && !trigger.getCalendarName().isEmpty()){
             final String calendarTriggersSetKey = redisSchema.calendarTriggersSetKey(trigger.getCalendarName());
             pipe.sadd(calendarTriggersSetKey, triggerHashKey);
+        }
+        if (trigger.getJobDataMap() != null && !trigger.getJobDataMap().isEmpty()) {
+            final String triggerDataMapHashKey = redisSchema.triggerDataMapHashKey(trigger.getKey());
+            pipe.hmset(triggerDataMapHashKey, getStringDataMap(trigger.getJobDataMap()));
         }
         pipe.sync();
 
