@@ -6,14 +6,15 @@ import org.junit.Test;
 import org.quartz.Calendar;
 import org.quartz.JobDetail;
 import org.quartz.JobPersistenceException;
+import org.quartz.impl.calendar.HolidayCalendar;
 import org.quartz.impl.triggers.CronTriggerImpl;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
@@ -124,5 +125,37 @@ public class StoreCalendarTest extends BaseTest{
         jobStore.storeTrigger(trigger1, false);
 
         jobStore.removeCalendar(trigger1.getCalendarName());
+    }
+
+    @Test
+    public void holidayCalendar() throws Exception {
+        // HolidayCalendar sets the time of any given Date to 00:00:00
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0);
+        cal.set(java.util.Calendar.MINUTE, 0);
+        cal.set(java.util.Calendar.SECOND, 0);
+        cal.set(java.util.Calendar.MILLISECOND, 0);
+        final Date excludedDate = cal.getTime();
+
+        HolidayCalendar calendar = new HolidayCalendar();
+        calendar.addExcludedDate(excludedDate);
+        final String name = "holidayCalendar";
+        jobStore.storeCalendar(name, calendar, true, true);
+
+        final String calendarHashKey = schema.calendarHashKey(name);
+        Map<String, String> calendarMap = jedis.hgetAll(calendarHashKey);
+
+        assertThat(calendarMap, hasKey("calendar_class"));
+        assertThat(calendarMap.get("calendar_class"), equalTo(HolidayCalendar.class.getName()));
+        assertThat(calendarMap, hasKey("calendar_json"));
+        String json = calendarMap.get("calendar_json");
+        assertThat(json, containsString("\"dates\":["));
+        assertThat(json, not(containsString("\"excludedDates\":")));
+
+        Calendar retrieved = jobStore.retrieveCalendar(name);
+        assertThat(retrieved, notNullValue());
+        assertThat(retrieved, instanceOf(HolidayCalendar.class));
+        HolidayCalendar retrievedHoliday = (HolidayCalendar) retrieved;
+        assertThat(retrievedHoliday.getExcludedDates(), hasItem(excludedDate));
     }
 }

@@ -1,4 +1,7 @@
 # Changelog
+### 2016-10-30
+* Fix serialization of HolidayCalendar
+
 ### 2016-10-23
 * Add support for storing trigger-specific job data
 

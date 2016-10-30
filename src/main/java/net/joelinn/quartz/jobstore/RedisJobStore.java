@@ -3,10 +3,12 @@ package net.joelinn.quartz.jobstore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.joelinn.quartz.jobstore.mixin.CronTriggerMixin;
+import net.joelinn.quartz.jobstore.mixin.HolidayCalendarMixin;
 import net.joelinn.quartz.jobstore.mixin.JobDetailMixin;
 import net.joelinn.quartz.jobstore.mixin.TriggerMixin;
 import org.quartz.Calendar;
 import org.quartz.*;
+import org.quartz.impl.calendar.HolidayCalendar;
 import org.quartz.impl.matchers.GroupMatcher;
 import org.quartz.spi.*;
 import org.slf4j.Logger;
@@ -115,11 +117,12 @@ public class RedisJobStore implements JobStore {
     public void initialize(ClassLoadHelper loadHelper, SchedulerSignaler signaler) throws SchedulerConfigException {
         final RedisJobStoreSchema redisSchema = new RedisJobStoreSchema(keyPrefix, keyDelimiter);
 
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.addMixIn(CronTrigger.class, CronTriggerMixin.class);
-        mapper.addMixIn(SimpleTrigger.class, TriggerMixin.class);
-        mapper.addMixIn(JobDetail.class, JobDetailMixin.class);
-        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        ObjectMapper mapper = new ObjectMapper()
+                .addMixIn(CronTrigger.class, CronTriggerMixin.class)
+                .addMixIn(SimpleTrigger.class, TriggerMixin.class)
+                .addMixIn(JobDetail.class, JobDetailMixin.class)
+                .addMixIn(HolidayCalendar.class, HolidayCalendarMixin.class)
+                .setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
         if (redisCluster && jedisCluster == null) {
             Set<HostAndPort> nodes = buildNodesSetFromHost();
