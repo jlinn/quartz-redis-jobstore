@@ -3,8 +3,8 @@ package net.joelinn.quartz.jobstore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.quartz.*;
 import org.quartz.Calendar;
+import org.quartz.*;
 import org.quartz.impl.matchers.GroupMatcher;
 import org.quartz.impl.matchers.StringMatcher;
 import org.quartz.spi.OperableTrigger;
@@ -223,18 +223,20 @@ public class RedisStorage extends AbstractRedisStorage<Jedis> {
         Response<Boolean> triggerPausedResponse = pipe.sismember(redisSchema.pausedTriggerGroupsSet(), triggerGroupSetKey);
         Response<Boolean> jobPausedResponse = pipe.sismember(redisSchema.pausedJobGroupsSet(), redisSchema.jobGroupSetKey(trigger.getJobKey()));
         pipe.sync();
-        if(triggerPausedResponse.get() || jobPausedResponse.get()){
-            final long nextFireTime = trigger.getNextFireTime() != null ? trigger.getNextFireTime().getTime() : -1;
-            final String jobHashKey = redisSchema.jobHashKey(trigger.getJobKey());
-            if(jedis.sismember(redisSchema.blockedJobsSet(), jobHashKey)){
+        final String jobHashKey = redisSchema.jobHashKey(trigger.getJobKey());
+        final long nextFireTime = trigger.getNextFireTime() != null ? trigger.getNextFireTime().getTime() : -1;
+        if (triggerPausedResponse.get() || jobPausedResponse.get()){
+            if (jedis.sismember(redisSchema.blockedJobsSet(), jobHashKey)) {
                 setTriggerState(RedisTriggerState.PAUSED_BLOCKED, (double) nextFireTime, triggerHashKey, jedis);
-            }
-            else{
+            } else {
                 setTriggerState(RedisTriggerState.PAUSED, (double) nextFireTime, triggerHashKey, jedis);
             }
-        }
-        else if(trigger.getNextFireTime() != null){
-            setTriggerState(RedisTriggerState.WAITING, (double) trigger.getNextFireTime().getTime(), triggerHashKey, jedis);
+        } else if(trigger.getNextFireTime() != null){
+            if (jedis.sismember(redisSchema.blockedJobsSet(), jobHashKey)) {
+                setTriggerState(RedisTriggerState.BLOCKED, nextFireTime, triggerHashKey, jedis);
+            } else {
+                setTriggerState(RedisTriggerState.WAITING, (double) trigger.getNextFireTime().getTime(), triggerHashKey, jedis);
+            }
         }
     }
 
@@ -688,21 +690,35 @@ public class RedisStorage extends AbstractRedisStorage<Jedis> {
             final Date previousFireTime = trigger.getPreviousFireTime();
             trigger.triggered(calendar);
 
+            // set the trigger state to WAITING
+            final long nextFireTime = trigger.getNextFireTime().getTime();
+            jedis.hset(triggerHashKey, TRIGGER_NEXT_FIRE_TIME, Long.toString(nextFireTime));
+            setTriggerState(RedisTriggerState.WAITING, (double) nextFireTime, triggerHashKey, jedis);
+
             JobDetail job = retrieveJob(trigger.getJobKey(), jedis);
             TriggerFiredBundle triggerFiredBundle = new TriggerFiredBundle(job, trigger, calendar, false, new Date(), previousFireTime, previousFireTime, trigger.getNextFireTime());
 
             // handling jobs for which concurrent execution is disallowed
-            if(isJobConcurrentExecutionDisallowed(job.getJobClass())){
+            if (isJobConcurrentExecutionDisallowed(job.getJobClass())){
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Firing trigger " + trigger.getKey() + " for job " + job.getKey() + " for which concurrent execution is disallowed. Adding job to blocked jobs set.");
+                }
                 final String jobHashKey = redisSchema.jobHashKey(trigger.getJobKey());
                 final String jobTriggerSetKey = redisSchema.jobTriggersSetKey(job.getKey());
                 for (String nonConcurrentTriggerHashKey : jedis.smembers(jobTriggerSetKey)) {
                     Double score = jedis.zscore(redisSchema.triggerStateKey(RedisTriggerState.WAITING), nonConcurrentTriggerHashKey);
                     if(score != null){
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Setting state of trigger " + trigger.getKey() + " for non-concurrent job " + job.getKey() + " to BLOCKED.");
+                        }
                         setTriggerState(RedisTriggerState.BLOCKED, score, nonConcurrentTriggerHashKey, jedis);
                     }
                     else{
                         score = jedis.zscore(redisSchema.triggerStateKey(RedisTriggerState.PAUSED), nonConcurrentTriggerHashKey);
                         if(score != null){
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("Setting state of trigger " + trigger.getKey() + " for non-concurrent job " + job.getKey() + " to PAUSED_BLOCKED.");
+                            }
                             setTriggerState(RedisTriggerState.PAUSED_BLOCKED, score, nonConcurrentTriggerHashKey, jedis);
                         }
                     }
@@ -711,16 +727,11 @@ public class RedisStorage extends AbstractRedisStorage<Jedis> {
                 pipe.set(redisSchema.jobBlockedKey(job.getKey()), schedulerInstanceId);
                 pipe.sadd(redisSchema.blockedJobsSet(), jobHashKey);
                 pipe.sync();
-            }
-
-            // release the fired trigger
-            if(trigger.getNextFireTime() != null){
-                final long nextFireTime = trigger.getNextFireTime().getTime();
+            } else if(trigger.getNextFireTime() != null){
                 jedis.hset(triggerHashKey, TRIGGER_NEXT_FIRE_TIME, Long.toString(nextFireTime));
                 logger.debug(String.format("Releasing trigger %s with next fire time %s. Setting state to WAITING.", triggerHashKey, nextFireTime));
                 setTriggerState(RedisTriggerState.WAITING, (double) nextFireTime, triggerHashKey, jedis);
-            }
-            else{
+            } else {
                 jedis.hset(triggerHashKey, TRIGGER_NEXT_FIRE_TIME, "");
                 unsetTriggerState(triggerHashKey, jedis);
             }

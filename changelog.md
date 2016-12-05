@@ -1,4 +1,7 @@
 # Changelog
+### 2016-12-04
+* Fixed handling of jobs marked with `@DisallowConcurrentExecution`.
+
 ### 2016-10-30
 * Fix serialization of HolidayCalendar
 

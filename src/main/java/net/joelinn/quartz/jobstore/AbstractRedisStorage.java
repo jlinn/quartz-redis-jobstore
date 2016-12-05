@@ -733,7 +733,9 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
             for (Tuple triggerTuple : jedis.zrangeByScoreWithScores(redisSchema.triggerStateKey(RedisTriggerState.WAITING), 0, (double) (noLaterThan + timeWindow), 0, maxCount)) {
                 OperableTrigger trigger = retrieveTrigger(redisSchema.triggerKey(triggerTuple.getElement()), jedis);
                 if(applyMisfire(trigger, jedis)){
-                    logger.debug("misfired trigger: " + triggerTuple.getElement());
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("misfired trigger: " + triggerTuple.getElement());
+                    }
                     retry = true;
                     break;
                 }
@@ -745,11 +747,19 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
                 final String jobHashKey = redisSchema.jobHashKey(trigger.getJobKey());
                 JobDetail job = retrieveJob(trigger.getJobKey(), jedis);
                 if(job != null && isJobConcurrentExecutionDisallowed(job.getJobClass())){
-                    if(acquiredJobHashKeysForNoConcurrentExec.contains(jobHashKey)){
-                        // a trigger is already acquired for this job
-                        continue;
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("Attempting to acquire job " + job.getKey() + " with concurrent execution disallowed.");
                     }
-                    else{
+                    if (acquiredJobHashKeysForNoConcurrentExec.contains(jobHashKey)) {
+                        // a trigger is already acquired for this job
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Job " + job.getKey() + " with concurrent execution disallowed already acquired.");
+                        }
+                        continue;
+                    } else {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Job " + job.getKey() + " with concurrent execution disallowed not yet acquired. Acquiring.");
+                        }
                         acquiredJobHashKeysForNoConcurrentExec.add(jobHashKey);
                     }
                 }

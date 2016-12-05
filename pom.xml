@@ -37,6 +37,7 @@
         <additionalparam>-Xdoclint:none</additionalparam>
         <quartz.version>2.2.1</quartz.version>
         <jackson.version>2.6.1</jackson.version>
+        <logback.version>1.1.7</logback.version>
     </properties>
 
     <repositories>
@@ -140,9 +141,16 @@
         </dependency>
 
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <version>1.7.7</version>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+            <version>${logback.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
