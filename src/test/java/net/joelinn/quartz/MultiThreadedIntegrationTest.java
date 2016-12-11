@@ -3,11 +3,8 @@ package net.joelinn.quartz;
 import net.jodah.concurrentunit.Waiter;
 import org.junit.Test;
 import org.quartz.CronTrigger;
-import org.quartz.JobDataMap;
 import org.quartz.JobDetail;
-import org.quartz.SchedulerException;
 import org.quartz.impl.matchers.NameMatcher;
-import org.quartz.simpl.PropertySettingJobFactory;
 import redis.clients.jedis.Jedis;
 
 import java.util.Properties;
@@ -90,16 +87,4 @@ public class MultiThreadedIntegrationTest extends BaseIntegrationTest {
 
         assertThat(SingletonSleepJob.concurrentExecutions.get(), equalTo(0));
     }
-
-
-    private class RedisJobFactory extends PropertySettingJobFactory {
-        @Override
-        protected void setBeanProps(Object obj, JobDataMap data) throws SchedulerException {
-            data.put("jedisPool", jedisPool);
-            super.setBeanProps(obj, data);
-        }
-    }
-
-
-
 }

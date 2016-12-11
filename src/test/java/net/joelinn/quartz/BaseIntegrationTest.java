@@ -7,6 +7,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
+import org.quartz.simpl.PropertySettingJobFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
@@ -30,27 +31,29 @@ public abstract class BaseIntegrationTest {
     protected Scheduler scheduler;
     protected Pool<Jedis> jedisPool;
 
+    protected int port;
+    protected static final String HOST = "localhost";
+
 
     @Before
     public void setUp() throws Exception {
-        final int port = getPort();
-        final String host = "localhost";
+        port = getPort();
         redisServer = RedisServer.builder()
                 .port(port)
                 .build();
         redisServer.start();
 
-        jedisPool = new JedisPool(host, port);
+        jedisPool = new JedisPool(HOST, port);
 
 
-        scheduler = new StdSchedulerFactory(schedulerConfig(host, port)).getScheduler();
+        scheduler = new StdSchedulerFactory(schedulerConfig(HOST, port)).getScheduler();
         scheduler.start();
     }
 
 
     protected Properties schedulerConfig(String host, int port) {
         Properties config = new Properties();
-        config.setProperty("org.quartz.jobStore.class", RedisJobStore.class.getName());
+        config.setProperty(StdSchedulerFactory.PROP_JOB_STORE_CLASS, RedisJobStore.class.getName());
         config.setProperty("org.quartz.jobStore.host", host);
         config.setProperty("org.quartz.jobStore.port", String.valueOf(port));
         config.setProperty("org.quartz.threadPool.threadCount", "1");
@@ -70,7 +73,7 @@ public abstract class BaseIntegrationTest {
 
 
     public static class DataJob implements Job {
-        private Pool<Jedis> jedisPool;
+        protected Pool<Jedis> jedisPool;
 
         public void setJedisPool(Pool<Jedis> jedisPool) {
             this.jedisPool = jedisPool;
@@ -190,6 +193,15 @@ public abstract class BaseIntegrationTest {
         @Override
         public void triggerComplete(Trigger trigger, JobExecutionContext context, Trigger.CompletedExecutionInstruction triggerInstructionCode) {
 
+        }
+    }
+
+
+    protected class RedisJobFactory extends PropertySettingJobFactory {
+        @Override
+        protected void setBeanProps(Object obj, JobDataMap data) throws SchedulerException {
+            data.put("jedisPool", jedisPool);
+            super.setBeanProps(obj, data);
         }
     }
 }
