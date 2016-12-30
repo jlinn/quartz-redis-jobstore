@@ -1,4 +1,7 @@
 # Changelog
+### 2016-12-30
+* Fix a bug when handling trigger firing for triggers with no next fire time
+
 ### 2016-12-04
 * Fixed handling of jobs marked with `@DisallowConcurrentExecution`.
 
