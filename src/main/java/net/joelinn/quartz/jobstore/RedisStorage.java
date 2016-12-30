@@ -691,12 +691,16 @@ public class RedisStorage extends AbstractRedisStorage<Jedis> {
             trigger.triggered(calendar);
 
             // set the trigger state to WAITING
-            final long nextFireTime = trigger.getNextFireTime().getTime();
-            jedis.hset(triggerHashKey, TRIGGER_NEXT_FIRE_TIME, Long.toString(nextFireTime));
-            setTriggerState(RedisTriggerState.WAITING, (double) nextFireTime, triggerHashKey, jedis);
+            final Date nextFireDate = trigger.getNextFireTime();
+            long nextFireTime = 0;
+            if (nextFireDate != null) {
+                nextFireTime = nextFireDate.getTime();
+                jedis.hset(triggerHashKey, TRIGGER_NEXT_FIRE_TIME, Long.toString(nextFireTime));
+                setTriggerState(RedisTriggerState.WAITING, (double) nextFireTime, triggerHashKey, jedis);
+            }
 
             JobDetail job = retrieveJob(trigger.getJobKey(), jedis);
-            TriggerFiredBundle triggerFiredBundle = new TriggerFiredBundle(job, trigger, calendar, false, new Date(), previousFireTime, previousFireTime, trigger.getNextFireTime());
+            TriggerFiredBundle triggerFiredBundle = new TriggerFiredBundle(job, trigger, calendar, false, new Date(), previousFireTime, previousFireTime, nextFireDate);
 
             // handling jobs for which concurrent execution is disallowed
             if (isJobConcurrentExecutionDisallowed(job.getJobClass())){
@@ -727,7 +731,7 @@ public class RedisStorage extends AbstractRedisStorage<Jedis> {
                 pipe.set(redisSchema.jobBlockedKey(job.getKey()), schedulerInstanceId);
                 pipe.sadd(redisSchema.blockedJobsSet(), jobHashKey);
                 pipe.sync();
-            } else if(trigger.getNextFireTime() != null){
+            } else if(nextFireDate != null){
                 jedis.hset(triggerHashKey, TRIGGER_NEXT_FIRE_TIME, Long.toString(nextFireTime));
                 logger.debug(String.format("Releasing trigger %s with next fire time %s. Setting state to WAITING.", triggerHashKey, nextFireTime));
                 setTriggerState(RedisTriggerState.WAITING, (double) nextFireTime, triggerHashKey, jedis);
