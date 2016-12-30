@@ -4,7 +4,7 @@
 
     <groupId>net.joelinn</groupId>
     <artifactId>quartz-redis-jobstore</artifactId>
-    <version>1.1.8</version>
+    <version>1.1.9-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>quartz-redis-jobstore</name>
     <description>A Quartz Scheduler JobStore using Redis.</description>
@@ -29,7 +29,7 @@
         <connection>scm:git:git@github.com:jlinn/quartz-redis-jobstore.git</connection>
         <developerConnection>scm:git:git@github.com:jlinn/quartz-redis-jobstore.git</developerConnection>
         <url>http://github.com/jlinn/quartz-redis-jobstore</url>
-        <tag>quartz-redis-jobstore-1.1.8</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <properties>
