@@ -89,6 +89,21 @@ public class RedisJobStore implements JobStore {
 
     protected AbstractRedisStorage storage;
 
+    /**
+     * socket connection timeout in ms
+     */
+    protected int conTimeout = 3000;
+
+    /**
+     * connection retries counter
+     */
+    protected int conRetries = 5;
+
+    /**
+     * socket timeout in ms
+     */
+    protected int soTimeout = 3000;
+
 
     public RedisJobStore setJedisPool(Pool<Jedis> jedisPool) {
         this.jedisPool = jedisPool;
@@ -126,7 +141,8 @@ public class RedisJobStore implements JobStore {
 
         if (redisCluster && jedisCluster == null) {
             Set<HostAndPort> nodes = buildNodesSetFromHost();
-            jedisCluster = new JedisCluster(nodes);
+            JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
+            jedisCluster = new JedisCluster(nodes, this.conTimeout, this.soTimeout, this.conRetries, this.password,jedisPoolConfig);
             storage = new RedisClusterStorage(redisSchema, mapper, signaler, instanceId, lockTimeout);
         } else if (jedisPool == null) {
             JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
