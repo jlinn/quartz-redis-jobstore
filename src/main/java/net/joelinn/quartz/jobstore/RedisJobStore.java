@@ -139,7 +139,9 @@ public class RedisJobStore implements JobStore {
                 .addMixIn(HolidayCalendar.class, HolidayCalendarMixin.class)
                 .setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
-        mapper.setTypeFactory(mapper.getTypeFactory().withClassLoader(loadHelper.getClassLoader()));
+        if (loadHelper != null && loadHelper.getClassLoader() != null) {
+          mapper.setTypeFactory(mapper.getTypeFactory().withClassLoader(loadHelper.getClassLoader()));
+        }
 
         if (redisCluster && jedisCluster == null) {
             Set<HostAndPort> nodes = buildNodesSetFromHost();
