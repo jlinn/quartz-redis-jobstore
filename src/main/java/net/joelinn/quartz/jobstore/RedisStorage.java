@@ -40,6 +40,7 @@ public class RedisStorage extends AbstractRedisStorage<Jedis> {
     @Override
     public boolean removeJob(JobKey jobKey, Jedis jedis) throws JobPersistenceException {
         final String jobHashKey = redisSchema.jobHashKey(jobKey);
+        final String jobBlockedKey = redisSchema.jobBlockedKey(jobKey);
         final String jobDataMapHashKey = redisSchema.jobDataMapHashKey(jobKey);
         final String jobGroupSetKey = redisSchema.jobGroupSetKey(jobKey);
         final String jobTriggerSetKey = redisSchema.jobTriggersSetKey(jobKey);
@@ -47,9 +48,14 @@ public class RedisStorage extends AbstractRedisStorage<Jedis> {
         Pipeline pipe = jedis.pipelined();
         // remove the job and any associated data
         Response<Long> delJobHashKeyResponse = pipe.del(jobHashKey);
+        // remove the blocked job key
+        pipe.del(jobBlockedKey);
+        // remove the job's data map
         pipe.del(jobDataMapHashKey);
         // remove the job from the set of all jobs
         pipe.srem(redisSchema.jobsSet(), jobHashKey);
+        // remove the job from the set of blocked jobs
+        pipe.srem(redisSchema.blockedJobsSet(), jobHashKey);
         // remove the job from its group
         pipe.srem(jobGroupSetKey, jobHashKey);
         // retrieve the keys for all triggers associated with this job, then delete that set
