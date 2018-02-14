@@ -104,6 +104,11 @@ public class RedisJobStore implements JobStore {
      */
     protected int soTimeout = 3000;
 
+    /**
+     * ssl flag
+     */
+    protected boolean ssl = false;
+
 
     public RedisJobStore setJedisPool(Pool<Jedis> jedisPool) {
         this.jedisPool = jedisPool;
@@ -161,7 +166,7 @@ public class RedisJobStore implements JobStore {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Instantiating JedisPool using host " + host + " and port " + port);
                 }
-                jedisPool = new JedisPool(jedisPoolConfig, host, port, Protocol.DEFAULT_TIMEOUT, password, database);
+                jedisPool = new JedisPool(jedisPoolConfig, host, port, Protocol.DEFAULT_TIMEOUT, password, database, ssl);
             }
             storage = new RedisStorage(redisSchema, mapper, signaler, instanceId, lockTimeout);
         }
@@ -1195,6 +1200,14 @@ public class RedisJobStore implements JobStore {
 
     public void setDatabase(String database){
         setDatabase(Short.valueOf(database));
+    }
+
+    public void setSsl(boolean ssl){
+        this.ssl = ssl;
+    }
+
+    public void setSsl(String ssl){
+        setSsl(Boolean.valueOf(ssl));
     }
 
     public void setKeyPrefix(String keyPrefix) {
