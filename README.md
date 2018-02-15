@@ -60,6 +60,9 @@ org.quartz.jobStore.keyPrefix = a_prefix_
 
 # set the Redis lock timeout in milliseconds (optional, defaults to 30000)
 org.quartz.jobStore.lockTimeout = 30000
+
+# enable SSL (defaults to false)
+org.quartz.jobStore.ssl = <true or false>
 ```
 
 ## Limitations
