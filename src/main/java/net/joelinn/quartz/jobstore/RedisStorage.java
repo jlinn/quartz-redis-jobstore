@@ -780,14 +780,14 @@ public class RedisStorage extends AbstractRedisStorage<Jedis> {
                 if (jobDataMap != null && !jobDataMap.isEmpty()) {
                     pipe.hmset(jobDataMapHashKey, getStringDataMap(jobDataMap));
                 }
-                pipe.sync();
+                pipe.syncAndReturnAll();
             }
             if (isJobConcurrentExecutionDisallowed(jobDetail.getJobClass())) {
                 // unblock the job
                 pipe = jedis.pipelined();
                 pipe.srem(redisSchema.blockedJobsSet(), jobHashKey);
                 pipe.del(redisSchema.jobBlockedKey(jobDetail.getKey()));
-                pipe.sync();
+                pipe.syncAndReturnAll();
 
                 final String jobTriggersSetKey = redisSchema.jobTriggersSetKey(jobDetail.getKey());
                 for (String nonConcurrentTriggerHashKey : jedis.smembers(jobTriggersSetKey)) {
