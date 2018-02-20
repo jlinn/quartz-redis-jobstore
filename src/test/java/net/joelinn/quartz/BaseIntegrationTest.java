@@ -58,13 +58,14 @@ public abstract class BaseIntegrationTest {
         config.setProperty("org.quartz.jobStore.port", String.valueOf(port));
         config.setProperty("org.quartz.threadPool.threadCount", "1");
         config.setProperty("org.quartz.jobStore.misfireThreshold", "500");
+        config.setProperty(StdSchedulerFactory.PROP_SCHED_SKIP_UPDATE_CHECK, "true");
         return config;
     }
 
 
     @After
     public void tearDown() throws Exception {
-        scheduler.shutdown();
+        scheduler.shutdown(true);
         if (jedisPool != null) {
             jedisPool.close();
         }

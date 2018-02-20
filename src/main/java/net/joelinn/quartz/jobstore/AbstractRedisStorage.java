@@ -730,6 +730,9 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
         do{
             retry = false;
             Set<String> acquiredJobHashKeysForNoConcurrentExec = new HashSet<>();
+            if (logger.isTraceEnabled()) {
+                logger.trace("Current time is {}. Attempting to acquire triggers firing no later than {}", System.currentTimeMillis(), (noLaterThan + timeWindow));
+            }
             for (Tuple triggerTuple : jedis.zrangeByScoreWithScores(redisSchema.triggerStateKey(RedisTriggerState.WAITING), 0, (double) (noLaterThan + timeWindow), 0, maxCount)) {
                 OperableTrigger trigger = retrieveTrigger(redisSchema.triggerKey(triggerTuple.getElement()), jedis);
                 if(applyMisfire(trigger, jedis)){

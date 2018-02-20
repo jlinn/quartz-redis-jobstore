@@ -1,12 +1,16 @@
 package net.joelinn.quartz;
 
 import net.jodah.concurrentunit.Waiter;
+import net.joelinn.junit.Retry;
+import net.joelinn.junit.RetryRule;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.quartz.*;
 import org.quartz.impl.StdSchedulerFactory;
 import org.quartz.impl.matchers.NameMatcher;
+import org.quartz.simpl.SimpleInstanceIdGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
@@ -30,6 +34,10 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
 
     private static final String KEY_ID = "id";
 
+
+    @Rule
+    public RetryRule retryRule = new RetryRule();
+
     private Scheduler scheduler2;
 
 
@@ -39,6 +47,8 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
         super.setUp();
         Properties props = schedulerConfig(HOST, port);
         props.setProperty(StdSchedulerFactory.PROP_SCHED_INSTANCE_NAME, "second");
+        props.setProperty(StdSchedulerFactory.PROP_SCHED_BATCH_TIME_WINDOW, "500");
+        props.setProperty(StdSchedulerFactory.PROP_SCHED_IDLE_WAIT_TIME, "1000");
         scheduler2 = new StdSchedulerFactory(props).getScheduler();
     }
 
@@ -46,7 +56,7 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
     @After
     @Override
     public void tearDown() throws Exception {
-        scheduler2.shutdown();
+        scheduler2.shutdown(true);
         super.tearDown();
     }
 
@@ -56,11 +66,12 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
         Properties config = super.schedulerConfig(host, port);
         config.setProperty("org.quartz.threadPool.threadCount", "2");
         config.setProperty("org.quartz.scheduler.instanceId", "AUTO");
-        config.setProperty("org.quartz.scheduler.instanceIdGenerator.class", "org.quartz.simpl.SimpleInstanceIdGenerator");
+        config.setProperty(StdSchedulerFactory.PROP_SCHED_INSTANCE_ID_GENERATOR_CLASS, SimpleInstanceIdGenerator.class.getName());
         return config;
     }
 
     @Test
+    @Retry(5)
     public void testMultipleSchedulers() throws Exception {
         scheduler.setJobFactory(new RedisJobFactory());
         scheduler2.setJobFactory(new RedisJobFactory());
@@ -70,7 +81,7 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
         assertThat(scheduler.getSchedulerInstanceId(), not(equalTo(scheduler2.getSchedulerInstanceId())));
 
         JobDetail job = createJob(SchedulerIDCheckingJob.class, "testJob", "group");
-        final String triggerName = "trigger";
+        final String triggerName = "test-trigger";
         CronTrigger trigger = createCronTrigger(triggerName, "group", "* * * * * ?");
 
         Waiter waiter = new Waiter();
@@ -83,8 +94,12 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
             assertThat(jedis.get(KEY_ID), equalTo(scheduler.getSchedulerInstanceId()));
         }
 
-        scheduler.shutdown();
+        scheduler.shutdown(true);
+        waiter = new Waiter();
         scheduler2.getListenerManager().addTriggerListener(new CompleteListener(waiter), NameMatcher.triggerNameEquals(triggerName));
+        if (log.isDebugEnabled()) {
+            log.debug("Starting second scheduler.");
+        }
         scheduler2.start();
 
         waiter.await(1500);
@@ -111,6 +126,9 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
                             jedis.set(KEY_ID, schedulerID);
                         }
                     }
+                }
+                if (log.isDebugEnabled()) {
+                    log.debug("Completed job on behalf of scheduler {} at {}", schedulerID, System.currentTimeMillis());
                 }
             } catch (SchedulerException e) {
                 log.error("Unable to obtain scheduler instance ID.", e);
