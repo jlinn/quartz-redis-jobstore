@@ -279,6 +279,7 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
         }
         triggerMap.remove(TRIGGER_CLASS);
         OperableTrigger operableTrigger = (OperableTrigger) mapper.convertValue(triggerMap, triggerClass);
+        operableTrigger.setFireInstanceId(schedulerInstanceId + "-" + operableTrigger.getKey() + "-" + operableTrigger.getStartTime().getTime());
         final Map<String, String> jobData = jedis.hgetAll(redisSchema.triggerDataMapHashKey(triggerKey));
         if (jobData != null && !jobData.isEmpty()){
             JobDataMap jobDataMap = new JobDataMap();

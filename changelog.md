@@ -1,5 +1,6 @@
 # Changelog
 ### 2018-02-27
+* Set fire instance id on retrieved triggers
 * Fixed a bug where trigger locks would get incorrectly removed for non-concurrent jobs
 
 ### 2016-12-30

@@ -79,6 +79,7 @@ public class StoreTriggerTest extends BaseTest{
         OperableTrigger operableTrigger = jobStore.retrieveTrigger(cronTrigger.getKey());
 
         assertThat(operableTrigger, instanceOf(CronTriggerImpl.class));
+        assertThat(operableTrigger.getFireInstanceId(), notNullValue());
         CronTriggerImpl retrievedTrigger = (CronTriggerImpl) operableTrigger;
 
         assertEquals(cronTrigger.getCronExpression(), retrievedTrigger.getCronExpression());
