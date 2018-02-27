@@ -1,4 +1,7 @@
 # Changelog
+### 2018-02-27
+* Fixed a bug where trigger locks would get incorrectly removed for non-concurrent jobs
+
 ### 2016-12-30
 * Fix a bug when handling trigger firing for triggers with no next fire time
 
