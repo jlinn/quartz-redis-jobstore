@@ -22,6 +22,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
@@ -486,6 +487,7 @@ public class StoreTriggerTest extends BaseTest{
                 assertEquals(Trigger.TriggerState.NORMAL, jobStore.getTriggerState(trigger.getKey()));
                 String triggerHashKey = schema.triggerHashKey(trigger.getKey());
                 assertThat(jedis.zscore(schema.triggerStateKey(RedisTriggerState.ACQUIRED), triggerHashKey), not(nullValue()));
+                assertThat(jedis.get(schema.triggerLockKey(schema.triggerKey(triggerHashKey))), notNullValue());
             }
         }
 

@@ -669,10 +669,14 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
                     Double score = jedis.zscore(redisSchema.triggerStateKey(RedisTriggerState.WAITING), nonConcurrentTriggerHashKey);
                     if (score != null) {
                         setTriggerState(RedisTriggerState.BLOCKED, score, nonConcurrentTriggerHashKey, jedis);
+                        // setting trigger state removes locks, so re-lock
+                        lockTrigger(redisSchema.triggerKey(nonConcurrentTriggerHashKey), jedis);
                     } else {
                         score = jedis.zscore(redisSchema.triggerStateKey(RedisTriggerState.PAUSED), nonConcurrentTriggerHashKey);
                         if (score != null) {
                             setTriggerState(RedisTriggerState.PAUSED_BLOCKED, score, nonConcurrentTriggerHashKey, jedis);
+                            // setting trigger state removes locks, so re-lock
+                            lockTrigger(redisSchema.triggerKey(nonConcurrentTriggerHashKey), jedis);
                         }
                     }
                 }

@@ -767,8 +767,11 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
                     }
                 }
                 // acquire the trigger
-                lockTrigger(trigger.getKey(), jedis);
                 setTriggerState(RedisTriggerState.ACQUIRED, triggerTuple.getScore(), triggerTuple.getElement(), jedis);
+                if (job != null && isJobConcurrentExecutionDisallowed(job.getJobClass())) {
+                    // setting the trigger state above will have removed any lock which was present, so we need to lock the trigger, again
+                    lockTrigger(trigger.getKey(), jedis);
+                }
                 acquiredTriggers.add(trigger);
                 logger.debug(String.format("Trigger %s acquired", triggerTuple.getElement()));
             }
