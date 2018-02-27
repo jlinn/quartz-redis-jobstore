@@ -475,25 +475,48 @@ public class StoreTriggerTest extends BaseTest{
     public void triggersFired() throws Exception {
         // store some jobs with triggers
         Map<JobDetail, Set<? extends Trigger>> jobsAndTriggers = getJobsAndTriggers(2, 2, 2, 2, "* * * * * ?");
+
+        // disallow concurrent execution for one of the jobs
+        Map.Entry<JobDetail, Set<? extends Trigger>> firstEntry = jobsAndTriggers.entrySet().iterator().next();
+        JobDetail nonConcurrentKey = firstEntry.getKey().getJobBuilder().ofType(TestJobNonConcurrent.class).build();
+        Set<? extends Trigger> nonConcurrentTriggers = firstEntry.getValue();
+        jobsAndTriggers.remove(firstEntry.getKey());
+        jobsAndTriggers.put(nonConcurrentKey, nonConcurrentTriggers);
+
         jobStore.storeCalendar("testCalendar", new WeeklyCalendar(), false, true);
         jobStore.storeJobsAndTriggers(jobsAndTriggers, false);
 
         List<OperableTrigger> acquiredTriggers = jobStore.acquireNextTriggers(System.currentTimeMillis() - 1000, 500, 4000);
-        assertThat(acquiredTriggers, hasSize(16));
+        assertThat(acquiredTriggers, hasSize(13));
 
+        int lockedTriggers = 0;
         // ensure that all triggers are in the NORMAL state and have been ACQUIRED
         for (Map.Entry<JobDetail, Set<? extends Trigger>> jobDetailSetEntry : jobsAndTriggers.entrySet()) {
             for (Trigger trigger : jobDetailSetEntry.getValue()) {
                 assertEquals(Trigger.TriggerState.NORMAL, jobStore.getTriggerState(trigger.getKey()));
                 String triggerHashKey = schema.triggerHashKey(trigger.getKey());
-                assertThat(jedis.zscore(schema.triggerStateKey(RedisTriggerState.ACQUIRED), triggerHashKey), not(nullValue()));
-                assertThat(jedis.get(schema.triggerLockKey(schema.triggerKey(triggerHashKey))), notNullValue());
+                if (jobDetailSetEntry.getKey().isConcurrentExectionDisallowed()) {
+                    if (jedis.zscore(schema.triggerStateKey(RedisTriggerState.ACQUIRED), triggerHashKey) != null) {
+                        assertThat("acquired trigger should be locked", jedis.get(schema.triggerLockKey(schema.triggerKey(triggerHashKey))), notNullValue());
+                        lockedTriggers++;
+                    } else {
+                        assertThat("non-acquired trigger should not be locked", jedis.get(schema.triggerLockKey(schema.triggerKey(triggerHashKey))), nullValue());
+                    }
+                } else {
+                    assertThat(jedis.zscore(schema.triggerStateKey(RedisTriggerState.ACQUIRED), triggerHashKey), not(nullValue()));
+                }
             }
         }
 
+        assertThat(lockedTriggers, equalTo(1));
+
         Set<? extends OperableTrigger> triggers = (Set<? extends  OperableTrigger>) new ArrayList<>(jobsAndTriggers.entrySet()).get(0).getValue();
         List<TriggerFiredResult> triggerFiredResults = jobStore.triggersFired(new ArrayList<>(triggers));
-        assertThat(triggerFiredResults, hasSize(4));
+        assertThat("exactly one trigger fired for job with concurrent execution disallowed", triggerFiredResults, hasSize(1));
+
+        triggers = (Set<? extends  OperableTrigger>) new ArrayList<>(jobsAndTriggers.entrySet()).get(1).getValue();
+        triggerFiredResults = jobStore.triggersFired(new ArrayList<>(triggers));
+        assertThat("all triggers fired for job with concurrent execution allowed", triggerFiredResults, hasSize(4));
     }
 
     @Test
