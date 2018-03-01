@@ -749,6 +749,7 @@ public class RedisStorage extends AbstractRedisStorage<Jedis> {
                 jedis.hset(triggerHashKey, TRIGGER_NEXT_FIRE_TIME, "");
                 unsetTriggerState(triggerHashKey, jedis);
             }
+            jedis.hset(triggerHashKey, TRIGGER_PREVIOUS_FIRE_TIME, Long.toString(System.currentTimeMillis()));
 
             results.add(new TriggerFiredResult(triggerFiredBundle));
         }

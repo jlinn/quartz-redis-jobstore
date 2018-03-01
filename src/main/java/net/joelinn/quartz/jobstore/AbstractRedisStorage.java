@@ -32,6 +32,10 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
      * The name of the trigger hash property which stores the trigger's next fire time
      */
     protected static final String TRIGGER_NEXT_FIRE_TIME = "nextFireTime";
+    /**
+     * Name of trigger hash property which stores the trigger's last fire time
+     */
+    protected static final String TRIGGER_PREVIOUS_FIRE_TIME = "previousFireTime";
 
     protected final RedisJobStoreSchema redisSchema;
 

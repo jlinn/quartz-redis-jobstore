@@ -4,6 +4,7 @@ import net.jodah.concurrentunit.Waiter;
 import net.joelinn.junit.Retry;
 import net.joelinn.junit.RetryRule;
 import net.joelinn.quartz.jobstore.RedisJobStoreSchema;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -16,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
@@ -23,9 +25,7 @@ import static junit.framework.TestCase.fail;
 import static net.joelinn.quartz.TestUtils.createCronTrigger;
 import static net.joelinn.quartz.TestUtils.createJob;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  * @author Joe Linn
@@ -112,6 +112,12 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
 
         try (Jedis jedis = jedisPool.getResource()) {
             assertThat(jedis.get(KEY_ID), equalTo(scheduler2.getSchedulerInstanceId()));
+        }
+
+        List<? extends Trigger> triggers = scheduler2.getTriggersOfJob(job.getKey());
+        assertThat(triggers, Matchers.hasSize(greaterThan(0)));
+        for (Trigger t : triggers) {
+            assertThat(t.getPreviousFireTime(), notNullValue());
         }
     }
 
