@@ -223,6 +223,13 @@ public class RedisJobStoreSchema {
     }
 
     /**
+     * @return the key which holds a hash of scheduler instance ids to last active time
+     */
+    public String lastInstanceActiveTime(){
+        return addPrefix("last_instance_active_time");
+    }
+
+    /**
      * @return the key of the set containing paused job groups
      */
     public String pausedJobGroupsSet(){

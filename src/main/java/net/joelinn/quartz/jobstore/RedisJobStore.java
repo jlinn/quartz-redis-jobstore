@@ -110,6 +110,12 @@ public class RedisJobStore implements JobStore {
     protected boolean ssl = false;
 
 
+    /**
+     * Time in MILLISECONDS after which an inactive clustered scheduler will be considered dead.
+     */
+    protected long clusterCheckinInterval = 4 * 60 * 1000;
+
+
     public RedisJobStore setJedisPool(Pool<Jedis> jedisPool) {
         this.jedisPool = jedisPool;
         return this;
@@ -124,6 +130,11 @@ public class RedisJobStore implements JobStore {
 
     public void setMisfireThreshold(int misfireThreshold) {
         this.misfireThreshold = misfireThreshold;
+    }
+
+
+    public void setClusterCheckinInterval(long interval) {
+        this.clusterCheckinInterval = interval;
     }
 
     /**
@@ -170,7 +181,8 @@ public class RedisJobStore implements JobStore {
             }
             storage = new RedisStorage(redisSchema, mapper, signaler, instanceId, lockTimeout);
         }
-        storage.setMisfireThreshold(misfireThreshold);
+        storage.setMisfireThreshold(misfireThreshold)
+                .setClusterCheckInterval(clusterCheckinInterval);
     }
 
     /**
@@ -227,7 +239,7 @@ public class RedisJobStore implements JobStore {
     }
 
     /**
-     * Whether or not the <code>JobStore</code> implementation is redisCluster.
+     * Whether or not the <code>JobStore</code> implementation is clustered.
      */
     @Override
     public boolean isClustered() {

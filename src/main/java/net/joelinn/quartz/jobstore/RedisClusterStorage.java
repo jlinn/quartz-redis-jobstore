@@ -164,7 +164,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
         if (triggerPausedResponse || jobPausedResponse) {
             final long nextFireTime = trigger.getNextFireTime() != null ? trigger.getNextFireTime().getTime() : -1;
             final String jobHashKey = redisSchema.jobHashKey(trigger.getJobKey());
-            if (jedis.sismember(redisSchema.blockedJobsSet(), jobHashKey)) {
+            if (isBlockedJob(jobHashKey, jedis)) {
                 setTriggerState(RedisTriggerState.PAUSED_BLOCKED, (double) nextFireTime, triggerHashKey, jedis);
             } else {
                 setTriggerState(RedisTriggerState.PAUSED, (double) nextFireTime, triggerHashKey, jedis);
@@ -549,7 +549,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
         final Date nextFireTime = trigger.getNextFireTime();
 
         if (nextFireTime != null) {
-            if (jedis.sismember(redisSchema.blockedJobsSet(), jobHashKey)) {
+            if (isBlockedJob(jobHashKey, jedis)) {
                 setTriggerState(RedisTriggerState.BLOCKED, (double) nextFireTime.getTime(), triggerHashKey, jedis);
             } else {
                 setTriggerState(RedisTriggerState.WAITING, (double) nextFireTime.getTime(), triggerHashKey, jedis);

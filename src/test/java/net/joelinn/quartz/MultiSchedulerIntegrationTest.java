@@ -3,6 +3,7 @@ package net.joelinn.quartz;
 import net.jodah.concurrentunit.Waiter;
 import net.joelinn.junit.Retry;
 import net.joelinn.junit.RetryRule;
+import net.joelinn.quartz.jobstore.RedisJobStoreSchema;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -16,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 import static junit.framework.TestCase.fail;
 import static net.joelinn.quartz.TestUtils.createCronTrigger;
@@ -39,7 +41,10 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
     public RetryRule retryRule = new RetryRule();
 
     private Scheduler scheduler2;
+    private RedisJobStoreSchema schema;
 
+    private static String jobThreadName;
+    private static Waiter jobStartWaiter;
 
     @Before
     @Override
@@ -50,6 +55,7 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
         props.setProperty(StdSchedulerFactory.PROP_SCHED_BATCH_TIME_WINDOW, "500");
         props.setProperty(StdSchedulerFactory.PROP_SCHED_IDLE_WAIT_TIME, "1000");
         scheduler2 = new StdSchedulerFactory(props).getScheduler();
+        schema = new RedisJobStoreSchema();
     }
 
 
@@ -110,10 +116,63 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
     }
 
 
+    @Test
+    public void testDeadScheduler() throws Exception {
+        scheduler.setJobFactory(new RedisJobFactory());
+        scheduler2.setJobFactory(new RedisJobFactory());
+
+        assertThat(scheduler.getSchedulerInstanceId(), notNullValue());
+        assertThat(scheduler2.getSchedulerInstanceId(), notNullValue());
+        assertThat(scheduler.getSchedulerInstanceId(), not(equalTo(scheduler2.getSchedulerInstanceId())));
+
+        JobDetail job = createJob(SchedulerIDCheckingJob.class, "testJob", "group")
+                .getJobBuilder()
+                .usingJobData("sleep", 15_000L)
+                .build();
+        final String triggerName = "test-trigger";
+        CronTrigger trigger = createCronTrigger(triggerName, "group", "* * * * * ?");
+
+        jobStartWaiter = new Waiter();
+        scheduler.scheduleJob(job, trigger);
+        jobStartWaiter.await(1500, TimeUnit.MILLISECONDS);
+
+        scheduler.shutdown(false);
+        getThreadByName(jobThreadName).interrupt();
+
+        try (Jedis jedis = jedisPool.getResource()) {
+            assertThat(jedis.get(KEY_ID), equalTo(scheduler.getSchedulerInstanceId()));
+            assertThat(jedis.exists(schema.lastInstanceActiveTime()), equalTo(true));
+            assertThat(jedis.hexists(schema.lastInstanceActiveTime(), scheduler.getSchedulerInstanceId()), equalTo(true));
+            jedis.hset(schema.lastInstanceActiveTime(), scheduler.getSchedulerInstanceId(), String.valueOf(System.currentTimeMillis() - 5 * 60_000));
+            assertThat("job still blocked", jedis.sismember(schema.blockedJobsSet(), schema.jobHashKey(job.getKey())), equalTo(true));
+        }
+
+        scheduler2.start();
+        jobStartWaiter.await(1500, TimeUnit.MILLISECONDS);
+
+        getThreadByName(jobThreadName).interrupt();
+
+        try (Jedis jedis = jedisPool.getResource()) {
+            assertThat(jedis.get(KEY_ID), equalTo(scheduler2.getSchedulerInstanceId()));
+        }
+    }
+
+
+    private Thread getThreadByName(String threadName) {
+        for (Thread t : Thread.getAllStackTraces().keySet()) {
+            if (t.getName().equals(threadName)) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+
     @DisallowConcurrentExecution
     public static class SchedulerIDCheckingJob extends DataJob {
         @Override
         public void execute(JobExecutionContext context) throws JobExecutionException {
+            jobThreadName = Thread.currentThread().getName();
             try {
                 final String schedulerID = context.getScheduler().getSchedulerInstanceId();
                 try (Jedis jedis = jedisPool.getResource()) {
@@ -129,6 +188,19 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
                 }
                 if (log.isDebugEnabled()) {
                     log.debug("Completed job on behalf of scheduler {} at {}", schedulerID, System.currentTimeMillis());
+                }
+                if (jobStartWaiter != null) {
+                    jobStartWaiter.resume();
+                }
+                JobDataMap dataMap = context.getMergedJobDataMap();
+                if (dataMap.containsKey("sleep")) {
+                    try {
+                        Thread.sleep(dataMap.getLong("sleep"));
+                    } catch (InterruptedException e) {
+                        if (log.isDebugEnabled()) {
+                            log.debug("Job interrupted while sleeping.", e);
+                        }
+                    }
                 }
             } catch (SchedulerException e) {
                 log.error("Unable to obtain scheduler instance ID.", e);

@@ -47,6 +47,8 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
 
     protected int misfireThreshold = 60_000;
 
+    protected long clusterCheckInterval = 4 * 60 * 1000;
+
     /**
      * The value of the currently held Redis lock (if any)
      */
@@ -62,6 +64,11 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
 
     public AbstractRedisStorage setMisfireThreshold(int misfireThreshold) {
         this.misfireThreshold = misfireThreshold;
+        return this;
+    }
+
+    public AbstractRedisStorage setClusterCheckInterval(long clusterCheckInterval) {
+        this.clusterCheckInterval = clusterCheckInterval;
         return this;
     }
 
@@ -638,6 +645,20 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
     }
 
     /**
+     * Determine if the instance with the given id has been active in the last 4 minutes
+     * @param instanceId the instance to check
+     * @param jedis a thread-safe Redis connection
+     * @return true if the instance with the given id has been active in the last 4 minutes
+     */
+    protected boolean isActiveInstance(String instanceId, T jedis) {
+        boolean isActive = ( System.currentTimeMillis() - getLastInstanceActiveTime(instanceId, jedis) < clusterCheckInterval);
+        if (!isActive) {
+            removeLastInstanceActiveTime(instanceId, jedis);
+        }
+        return isActive;
+    }
+
+    /**
      * Release triggers from the given current state to the new state if its locking scheduler has not
      * registered as alive in the last 10 minutes
      * @param currentState the current state of the orphaned trigger
@@ -647,7 +668,7 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
     protected void releaseOrphanedTriggers(RedisTriggerState currentState, RedisTriggerState newState, T jedis) throws JobPersistenceException {
         for (Tuple triggerTuple : jedis.zrangeWithScores(redisSchema.triggerStateKey(currentState), 0, -1)) {
             final String lockId = jedis.get(redisSchema.triggerLockKey(redisSchema.triggerKey(triggerTuple.getElement())));
-            if(isNullOrEmpty(lockId)){
+            if(isNullOrEmpty(lockId) || !isActiveInstance(lockId, jedis)){
                 // Lock key has expired. We can safely alter the trigger's state.
                 logger.debug(String.format("Changing state of orphaned trigger %s from %s to %s.", triggerTuple.getElement(), currentState, newState));
                 setTriggerState(newState, triggerTuple.getScore(), triggerTuple.getElement(), jedis);
@@ -661,13 +682,23 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
      * @throws JobPersistenceException
      */
     protected void releaseTriggersCron(T jedis) throws JobPersistenceException {
-        if(System.currentTimeMillis() - getLastTriggersReleaseTime(jedis) > TRIGGER_LOCK_TIMEOUT){
-            // it has been more than 10 minutes since we last released orphaned triggers
+        // has it been more than 10 minutes since we last released orphaned triggers
+        // or is this the first check upon initialization
+        if(isTriggerLockTimeoutExceeded(jedis) || !isActiveInstance(schedulerInstanceId, jedis)){
             releaseOrphanedTriggers(RedisTriggerState.ACQUIRED, RedisTriggerState.WAITING, jedis);
             releaseOrphanedTriggers(RedisTriggerState.BLOCKED, RedisTriggerState.WAITING, jedis);
             releaseOrphanedTriggers(RedisTriggerState.PAUSED_BLOCKED, RedisTriggerState.PAUSED, jedis);
             settLastTriggerReleaseTime(System.currentTimeMillis(), jedis);
         }
+    }
+
+    /**
+     * Determine if the last trigger release time exceeds the trigger lock timeout.
+     * @param jedis a thread-safe Redis connection
+     * @return if the last trigger release time exceeds the trigger lock timeout.
+     */
+    protected boolean isTriggerLockTimeoutExceeded(T jedis) {
+        return System.currentTimeMillis() - getLastTriggersReleaseTime(jedis) > TRIGGER_LOCK_TIMEOUT;
     }
 
     /**
@@ -690,6 +721,50 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
      */
     protected void settLastTriggerReleaseTime(long time, T jedis){
         jedis.set(redisSchema.lastTriggerReleaseTime(), Long.toString(time));
+    }
+
+    /**
+     * Retrieve the last time (in milliseconds) that the instance was active
+     * @param instanceId The instance to check
+     * @param jedis a thread-safe Redis connection
+     * @return a unix timestamp in milliseconds
+     */
+    protected long getLastInstanceActiveTime(String instanceId, T jedis){
+        final String lastActiveTime = jedis.hget(redisSchema.lastInstanceActiveTime(), instanceId);
+        if(lastActiveTime == null){
+            return 0;
+        }
+        return Long.parseLong(lastActiveTime);
+    }
+
+    /**
+     * Set the last time at which this instance was active
+     * @param time a unix timestamp in milliseconds
+     * @param jedis a thread-safe Redis connection
+     */
+    protected void setLastInstanceActiveTime(String instanceId, long time, T jedis){
+        jedis.hset(redisSchema.lastInstanceActiveTime(), instanceId, Long.toString(time));
+    }
+
+    /**
+     * Remove the given instance from the hash
+     * @param instanceId The instance id to remove
+     * @param jedis a thread-safe Redis connection
+     */
+    protected void removeLastInstanceActiveTime(String instanceId, T jedis){
+        jedis.hdel(redisSchema.lastInstanceActiveTime(), instanceId);
+    }
+
+    /**
+     * Determine if the given job is blocked by an active instance
+     * @param jobHashKey the job in question
+     * @param jedis a thread-safe Redis connection
+     * @return true if the given job is blocked by an active instance
+     */
+    protected boolean isBlockedJob(String jobHashKey, T jedis) {
+        JobKey jobKey = redisSchema.jobKey(jobHashKey);
+        return jedis.sismember(redisSchema.blockedJobsSet(), jobHashKey) &&
+                isActiveInstance(jedis.get(redisSchema.jobBlockedKey(jobKey)), jedis);
     }
 
     /**
@@ -726,6 +801,7 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
      */
     public List<OperableTrigger> acquireNextTriggers(long noLaterThan, int maxCount, long timeWindow, T jedis) throws JobPersistenceException, ClassNotFoundException {
         releaseTriggersCron(jedis);
+        setLastInstanceActiveTime(schedulerInstanceId, System.currentTimeMillis(), jedis);
         List<OperableTrigger> acquiredTriggers = new ArrayList<>();
         boolean retry;
         do{
