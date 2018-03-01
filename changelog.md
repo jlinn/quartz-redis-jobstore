@@ -1,4 +1,8 @@
 # Changelog
+### 2018-03-01
+* Detect dead schedulers and unblock their blocked triggers
+* Keep track of `previousFireTime` for triggers
+
 ### 2018-02-27
 * Set fire instance id on retrieved triggers
 * Fixed a bug where trigger locks would get incorrectly removed for non-concurrent jobs
