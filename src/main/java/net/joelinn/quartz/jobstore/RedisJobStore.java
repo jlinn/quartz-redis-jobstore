@@ -1132,7 +1132,7 @@ public class RedisJobStore implements JobStore {
      * @return response from callback, if any
      * @throws JobPersistenceException
      */
-    private <T> T doWithLock(LockCallback<T> callback) throws JobPersistenceException {
+    protected  <T> T doWithLock(LockCallback<T> callback) throws JobPersistenceException {
         return doWithLock(callback, null);
     }
 
@@ -1145,7 +1145,7 @@ public class RedisJobStore implements JobStore {
      * @return the result of the actions performed while locked, if any
      * @throws JobPersistenceException
      */
-    private <T> T doWithLock(LockCallback<T> callback, String errorMessage) throws JobPersistenceException {
+    protected <T> T doWithLock(LockCallback<T> callback, String errorMessage) throws JobPersistenceException {
         JedisCommands jedis = null;
         try {
             jedis = getResource();
@@ -1180,7 +1180,7 @@ public class RedisJobStore implements JobStore {
     }
 
 
-    private interface LockCallback<T> {
+    protected interface LockCallback<T> {
         T doWithLock(JedisCommands jedis) throws JobPersistenceException;
     }
 
