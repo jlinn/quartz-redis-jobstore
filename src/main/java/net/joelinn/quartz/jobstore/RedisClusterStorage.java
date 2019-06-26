@@ -49,6 +49,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
 
         jedis.hmset(jobHashKey, (Map<String, String>) mapper.convertValue(jobDetail, new TypeReference<HashMap<String, String>>() {
         }));
+        jedis.del(jobDataMapHashKey);
         if (jobDetail.getJobDataMap() != null && !jobDetail.getJobDataMap().isEmpty()) {
             jedis.hmset(jobDataMapHashKey, getStringDataMap(jobDetail.getJobDataMap()));
         }

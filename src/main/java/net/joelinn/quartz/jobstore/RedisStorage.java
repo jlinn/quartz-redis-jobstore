@@ -169,6 +169,7 @@ public class RedisStorage extends AbstractRedisStorage<Jedis> {
 
         Pipeline pipe = jedis.pipelined();
         pipe.hmset(jobHashKey, (Map<String, String>) mapper.convertValue(jobDetail, new TypeReference<HashMap<String, String>>() {}));
+        pipe.del(jobDataMapHashKey);
         if(jobDetail.getJobDataMap() != null && !jobDetail.getJobDataMap().isEmpty()){
             pipe.hmset(jobDataMapHashKey, getStringDataMap(jobDetail.getJobDataMap()));
         }

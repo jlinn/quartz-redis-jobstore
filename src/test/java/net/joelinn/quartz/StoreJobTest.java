@@ -39,6 +39,15 @@ public class StoreJobTest extends BaseTest{
         assertNotNull(jobData);
         assertThat(jobData, hasKey("timeout"));
         assertEquals("42", jobData.get("timeout"));
+
+        // ensure that job data which is not included in the current map is removed from Redis
+        testJob.getJobDataMap().remove("timeout");
+        testJob.getJobDataMap().put("foo", "bar");
+        jobStore.storeJob(testJob, true);
+        jobData = jedis.hgetAll(schema.jobDataMapHashKey(testJob.getKey()));
+        assertNotNull(jobData);
+        assertThat(jobData, not(hasKey("timeout")));
+        assertThat(jobData, hasKey("foo"));
     }
 
     @Test(expected = ObjectAlreadyExistsException.class)
