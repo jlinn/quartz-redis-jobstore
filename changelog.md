@@ -1,4 +1,8 @@
 # Changelog
+### 2019-06-26
+* Delete job data map set from Redis prior to storing new job data when updating / overwriting a job. 
+This will prevent keys which were removed from the job's data map prior to storage from being preserved.
+
 ### 2018-03-01
 * Detect dead schedulers and unblock their blocked triggers
 * Keep track of `previousFireTime` for triggers
