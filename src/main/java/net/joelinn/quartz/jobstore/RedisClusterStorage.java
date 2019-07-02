@@ -3,6 +3,7 @@ package net.joelinn.quartz.jobstore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import net.joelinn.quartz.jobstore.jedis.JedisClusterCommandsWrapper;
 import org.quartz.Calendar;
 import org.quartz.*;
 import org.quartz.impl.matchers.GroupMatcher;
@@ -13,7 +14,6 @@ import org.quartz.spi.TriggerFiredBundle;
 import org.quartz.spi.TriggerFiredResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import redis.clients.jedis.JedisCluster;
 
 import java.util.*;
 
@@ -21,7 +21,7 @@ import java.util.*;
  * Joe Linn
  * 8/22/2015
  */
-public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
+public class RedisClusterStorage extends AbstractRedisStorage<JedisClusterCommandsWrapper> {
     private static final Logger logger = LoggerFactory.getLogger(RedisClusterStorage.class);
 
     public RedisClusterStorage(RedisJobStoreSchema redisSchema, ObjectMapper mapper, SchedulerSignaler signaler, String schedulerInstanceId, int lockTimeout) {
@@ -38,7 +38,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      */
     @Override
     @SuppressWarnings("unchecked")
-    public void storeJob(JobDetail jobDetail, boolean replaceExisting, JedisCluster jedis) throws ObjectAlreadyExistsException {
+    public void storeJob(JobDetail jobDetail, boolean replaceExisting, JedisClusterCommandsWrapper jedis) throws ObjectAlreadyExistsException {
         final String jobHashKey = redisSchema.jobHashKey(jobDetail.getKey());
         final String jobDataMapHashKey = redisSchema.jobDataMapHashKey(jobDetail.getKey());
         final String jobGroupSetKey = redisSchema.jobGroupSetKey(jobDetail.getKey());
@@ -67,7 +67,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @return true if the job was removed; false if it did not exist
      */
     @Override
-    public boolean removeJob(JobKey jobKey, JedisCluster jedis) throws JobPersistenceException {
+    public boolean removeJob(JobKey jobKey, JedisClusterCommandsWrapper jedis) throws JobPersistenceException {
         final String jobHashKey = redisSchema.jobHashKey(jobKey);
         final String jobBlockedKey = redisSchema.jobBlockedKey(jobKey);
         final String jobDataMapHashKey = redisSchema.jobDataMapHashKey(jobKey);
@@ -123,7 +123,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @throws ObjectAlreadyExistsException
      */
     @Override
-    public void storeTrigger(OperableTrigger trigger, boolean replaceExisting, JedisCluster jedis) throws JobPersistenceException {
+    public void storeTrigger(OperableTrigger trigger, boolean replaceExisting, JedisClusterCommandsWrapper jedis) throws JobPersistenceException {
         final String triggerHashKey = redisSchema.triggerHashKey(trigger.getKey());
         final String triggerGroupSetKey = redisSchema.triggerGroupSetKey(trigger.getKey());
         final String jobTriggerSetKey = redisSchema.jobTriggersSetKey(trigger.getJobKey());
@@ -185,7 +185,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @return true if the trigger was found and removed
      */
     @Override
-    protected boolean removeTrigger(TriggerKey triggerKey, boolean removeNonDurableJob, JedisCluster jedis) throws JobPersistenceException, ClassNotFoundException {
+    protected boolean removeTrigger(TriggerKey triggerKey, boolean removeNonDurableJob, JedisClusterCommandsWrapper jedis) throws JobPersistenceException, ClassNotFoundException {
         final String triggerHashKey = redisSchema.triggerHashKey(triggerKey);
         final String triggerGroupSetKey = redisSchema.triggerGroupSetKey(triggerKey);
 
@@ -240,7 +240,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @throws JobPersistenceException if the unset operation failed
      */
     @Override
-    public boolean unsetTriggerState(String triggerHashKey, JedisCluster jedis) throws JobPersistenceException {
+    public boolean unsetTriggerState(String triggerHashKey, JedisClusterCommandsWrapper jedis) throws JobPersistenceException {
         boolean removed = false;
         List<Long> responses = new ArrayList<>(RedisTriggerState.values().length);
         for (RedisTriggerState state : RedisTriggerState.values()) {
@@ -267,7 +267,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @throws JobPersistenceException
      */
     @Override
-    public void storeCalendar(String name, Calendar calendar, boolean replaceExisting, boolean updateTriggers, JedisCluster jedis) throws JobPersistenceException {
+    public void storeCalendar(String name, Calendar calendar, boolean replaceExisting, boolean updateTriggers, JedisClusterCommandsWrapper jedis) throws JobPersistenceException {
         final String calendarHashKey = redisSchema.calendarHashKey(name);
         if (!replaceExisting && jedis.exists(calendarHashKey)) {
             throw new ObjectAlreadyExistsException(String.format("Calendar with key %s already exists.", calendarHashKey));
@@ -305,7 +305,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @return true if a calendar with the given name was found and removed
      */
     @Override
-    public boolean removeCalendar(String calendarName, JedisCluster jedis) throws JobPersistenceException {
+    public boolean removeCalendar(String calendarName, JedisClusterCommandsWrapper jedis) throws JobPersistenceException {
         final String calendarTriggersSetKey = redisSchema.calendarTriggersSetKey(calendarName);
 
         if (jedis.scard(calendarTriggersSetKey) > 0) {
@@ -326,7 +326,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @return the set of all JobKeys which have the given group name
      */
     @Override
-    public Set<JobKey> getJobKeys(GroupMatcher<JobKey> matcher, JedisCluster jedis) {
+    public Set<JobKey> getJobKeys(GroupMatcher<JobKey> matcher, JedisClusterCommandsWrapper jedis) {
         Set<JobKey> jobKeys = new HashSet<>();
         if (matcher.getCompareWithOperator() == StringMatcher.StringOperatorName.EQUALS) {
             final String jobGroupSetKey = redisSchema.jobGroupSetKey(new JobKey("", matcher.getCompareToValue()));
@@ -362,7 +362,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @return the set of all TriggerKeys which have the given group name
      */
     @Override
-    public Set<TriggerKey> getTriggerKeys(GroupMatcher<TriggerKey> matcher, JedisCluster jedis) {
+    public Set<TriggerKey> getTriggerKeys(GroupMatcher<TriggerKey> matcher, JedisClusterCommandsWrapper jedis) {
         Set<TriggerKey> triggerKeys = new HashSet<>();
         if (matcher.getCompareWithOperator() == StringMatcher.StringOperatorName.EQUALS) {
             final String triggerGroupSetKey = redisSchema.triggerGroupSetKey(new TriggerKey("", matcher.getCompareToValue()));
@@ -398,7 +398,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @return the state of the trigger
      */
     @Override
-    public Trigger.TriggerState getTriggerState(TriggerKey triggerKey, JedisCluster jedis) {
+    public Trigger.TriggerState getTriggerState(TriggerKey triggerKey, JedisClusterCommandsWrapper jedis) {
         final String triggerHashKey = redisSchema.triggerHashKey(triggerKey);
         Map<RedisTriggerState, Double> scores = new HashMap<>(RedisTriggerState.values().length);
         for (RedisTriggerState redisTriggerState : RedisTriggerState.values()) {
@@ -420,7 +420,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @throws JobPersistenceException if the desired trigger does not exist
      */
     @Override
-    public void pauseTrigger(TriggerKey triggerKey, JedisCluster jedis) throws JobPersistenceException {
+    public void pauseTrigger(TriggerKey triggerKey, JedisClusterCommandsWrapper jedis) throws JobPersistenceException {
         final String triggerHashKey = redisSchema.triggerHashKey(triggerKey);
         Boolean exists = jedis.exists(triggerHashKey);
         Double completedScore = jedis.zscore(redisSchema.triggerStateKey(RedisTriggerState.COMPLETED), triggerHashKey);
@@ -453,7 +453,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @throws JobPersistenceException
      */
     @Override
-    public Collection<String> pauseTriggers(GroupMatcher<TriggerKey> matcher, JedisCluster jedis) throws JobPersistenceException {
+    public Collection<String> pauseTriggers(GroupMatcher<TriggerKey> matcher, JedisClusterCommandsWrapper jedis) throws JobPersistenceException {
         Set<String> pausedTriggerGroups = new HashSet<>();
         if (matcher.getCompareWithOperator() == StringMatcher.StringOperatorName.EQUALS) {
             final String triggerGroupSetKey = redisSchema.triggerGroupSetKey(new TriggerKey("", matcher.getCompareToValue()));
@@ -494,7 +494,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @throws JobPersistenceException
      */
     @Override
-    public Collection<String> pauseJobs(GroupMatcher<JobKey> groupMatcher, JedisCluster jedis) throws JobPersistenceException {
+    public Collection<String> pauseJobs(GroupMatcher<JobKey> groupMatcher, JedisClusterCommandsWrapper jedis) throws JobPersistenceException {
         Set<String> pausedJobGroups = new HashSet<>();
         if (groupMatcher.getCompareWithOperator() == StringMatcher.StringOperatorName.EQUALS) {
             final String jobGroupSetKey = redisSchema.jobGroupSetKey(new JobKey("", groupMatcher.getCompareToValue()));
@@ -531,7 +531,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @param jedis      a thread-safe Redis connection
      */
     @Override
-    public void resumeTrigger(TriggerKey triggerKey, JedisCluster jedis) throws JobPersistenceException {
+    public void resumeTrigger(TriggerKey triggerKey, JedisClusterCommandsWrapper jedis) throws JobPersistenceException {
         final String triggerHashKey = redisSchema.triggerHashKey(triggerKey);
         Boolean exists = jedis.sismember(redisSchema.triggersSet(), triggerHashKey);
         Double isPaused = jedis.zscore(redisSchema.triggerStateKey(RedisTriggerState.PAUSED), triggerHashKey);
@@ -567,7 +567,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @return the names of trigger groups which were resumed
      */
     @Override
-    public Collection<String> resumeTriggers(GroupMatcher<TriggerKey> matcher, JedisCluster jedis) throws JobPersistenceException {
+    public Collection<String> resumeTriggers(GroupMatcher<TriggerKey> matcher, JedisClusterCommandsWrapper jedis) throws JobPersistenceException {
         Set<String> resumedTriggerGroups = new HashSet<>();
         if (matcher.getCompareWithOperator() == StringMatcher.StringOperatorName.EQUALS) {
             final String triggerGroupSetKey = redisSchema.triggerGroupSetKey(new TriggerKey("", matcher.getCompareToValue()));
@@ -596,7 +596,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @return the set of job groups which were matched and resumed
      */
     @Override
-    public Collection<String> resumeJobs(GroupMatcher<JobKey> matcher, JedisCluster jedis) throws JobPersistenceException {
+    public Collection<String> resumeJobs(GroupMatcher<JobKey> matcher, JedisClusterCommandsWrapper jedis) throws JobPersistenceException {
         Set<String> resumedJobGroups = new HashSet<>();
         if (matcher.getCompareWithOperator() == StringMatcher.StringOperatorName.EQUALS) {
             final String jobGroupSetKey = redisSchema.jobGroupSetKey(new JobKey("", matcher.getCompareToValue()));
@@ -631,7 +631,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * could be fired.
      */
     @Override
-    public List<TriggerFiredResult> triggersFired(List<OperableTrigger> triggers, JedisCluster jedis) throws JobPersistenceException, ClassNotFoundException {
+    public List<TriggerFiredResult> triggersFired(List<OperableTrigger> triggers, JedisClusterCommandsWrapper jedis) throws JobPersistenceException, ClassNotFoundException {
         List<TriggerFiredResult> results = new ArrayList<>();
         for (OperableTrigger trigger : triggers) {
             final String triggerHashKey = redisSchema.triggerHashKey(trigger.getKey());
@@ -716,7 +716,7 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisCluster> {
      * @param jedis           a thread-safe Redis connection
      */
     @Override
-    public void triggeredJobComplete(OperableTrigger trigger, JobDetail jobDetail, Trigger.CompletedExecutionInstruction triggerInstCode, JedisCluster jedis) throws JobPersistenceException, ClassNotFoundException {
+    public void triggeredJobComplete(OperableTrigger trigger, JobDetail jobDetail, Trigger.CompletedExecutionInstruction triggerInstCode, JedisClusterCommandsWrapper jedis) throws JobPersistenceException, ClassNotFoundException {
         final String jobHashKey = redisSchema.jobHashKey(jobDetail.getKey());
         final String jobDataMapHashKey = redisSchema.jobDataMapHashKey(jobDetail.getKey());
         final String triggerHashKey = redisSchema.triggerHashKey(trigger.getKey());

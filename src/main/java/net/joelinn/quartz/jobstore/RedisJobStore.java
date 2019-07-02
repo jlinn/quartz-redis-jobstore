@@ -2,6 +2,7 @@ package net.joelinn.quartz.jobstore;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import net.joelinn.quartz.jobstore.jedis.JedisClusterCommandsWrapper;
 import net.joelinn.quartz.jobstore.mixin.CronTriggerMixin;
 import net.joelinn.quartz.jobstore.mixin.HolidayCalendarMixin;
 import net.joelinn.quartz.jobstore.mixin.JobDetailMixin;
@@ -14,7 +15,8 @@ import org.quartz.spi.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.*;
-import redis.clients.util.Pool;
+import redis.clients.jedis.commands.JedisCommands;
+import redis.clients.jedis.util.Pool;
 
 import java.util.*;
 
@@ -28,7 +30,7 @@ public class RedisJobStore implements JobStore {
 
     private Pool<Jedis> jedisPool;
 
-    private JedisCluster jedisCluster;
+    private JedisClusterCommandsWrapper jedisCluster;
 
     /**
      * Redis lock timeout in milliseconds
@@ -122,7 +124,7 @@ public class RedisJobStore implements JobStore {
     }
 
 
-    public RedisJobStore setJedisCluster(JedisCluster jedisCluster) {
+    public RedisJobStore setJedisCluster(JedisClusterCommandsWrapper jedisCluster) {
         this.jedisCluster = jedisCluster;
         return this;
     }
@@ -162,7 +164,7 @@ public class RedisJobStore implements JobStore {
         if (redisCluster && jedisCluster == null) {
             Set<HostAndPort> nodes = buildNodesSetFromHost();
             JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
-            jedisCluster = new JedisCluster(nodes, this.conTimeout, this.soTimeout, this.conRetries, this.password,jedisPoolConfig);
+            jedisCluster = new JedisClusterCommandsWrapper(new JedisCluster(nodes, this.conTimeout, this.soTimeout, this.conRetries, this.password,jedisPoolConfig));
             storage = new RedisClusterStorage(redisSchema, mapper, signaler, instanceId, lockTimeout);
         } else if (jedisPool == null) {
             JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();

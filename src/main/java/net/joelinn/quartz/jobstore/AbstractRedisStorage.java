@@ -11,8 +11,9 @@ import org.quartz.spi.TriggerFiredResult;
 import org.quartz.utils.ClassUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import redis.clients.jedis.JedisCommands;
 import redis.clients.jedis.Tuple;
+import redis.clients.jedis.commands.JedisCommands;
+import redis.clients.jedis.params.SetParams;
 
 import java.io.IOException;
 import java.util.*;
@@ -82,7 +83,7 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
      */
     public boolean lock(T jedis){
         UUID lockId = UUID.randomUUID();
-        final String setResponse = jedis.set(redisSchema.lockKey(), lockId.toString(), "NX", "PX", lockTimeout);
+        final String setResponse = jedis.set(redisSchema.lockKey(), lockId.toString(), SetParams.setParams().nx().px(lockTimeout));
         boolean lockAcquired = !isNullOrEmpty(setResponse) && setResponse.equals("OK");
         if(lockAcquired){
             // save the random value used to lock so that we can successfully unlock later
@@ -787,7 +788,7 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
      * @return true if lock was acquired successfully; false otherwise
      */
     protected boolean lockTrigger(TriggerKey triggerKey, T jedis){
-        return jedis.set(redisSchema.triggerLockKey(triggerKey), schedulerInstanceId, "NX", "PX", TRIGGER_LOCK_TIMEOUT).equals("OK");
+        return jedis.set(redisSchema.triggerLockKey(triggerKey), schedulerInstanceId, SetParams.setParams().nx().px(TRIGGER_LOCK_TIMEOUT)).equals("OK");
     }
 
     /**
