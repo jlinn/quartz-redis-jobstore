@@ -1,4 +1,7 @@
 # Changelog
+### 2019-07-02
+* Upgrade to Jedis 3.0.1
+
 ### 2019-06-26
 * Delete job data map set from Redis prior to storing new job data when updating / overwriting a job. 
 This will prevent keys which were removed from the job's data map prior to storage from being preserved.
