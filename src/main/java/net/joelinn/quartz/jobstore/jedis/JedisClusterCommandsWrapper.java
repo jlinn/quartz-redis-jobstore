@@ -760,4 +760,74 @@ public class JedisClusterCommandsWrapper implements JedisCommands {
     public Long hstrlen(String s, String s1) {
         return cluster.hstrlen(s, s1);
     }
+
+    @Override
+    public StreamEntryID xadd(String s, StreamEntryID streamEntryID, Map<String, String> map) {
+        return null;
+    }
+
+    @Override
+    public StreamEntryID xadd(String s, StreamEntryID streamEntryID, Map<String, String> map, long l, boolean b) {
+        return null;
+    }
+
+    @Override
+    public Long xlen(String s) {
+        return null;
+    }
+
+    @Override
+    public List<StreamEntry> xrange(String s, StreamEntryID streamEntryID, StreamEntryID streamEntryID1, int i) {
+        return null;
+    }
+
+    @Override
+    public List<StreamEntry> xrevrange(String s, StreamEntryID streamEntryID, StreamEntryID streamEntryID1, int i) {
+        return null;
+    }
+
+    @Override
+    public long xack(String s, String s1, StreamEntryID... streamEntryIDS) {
+        return 0;
+    }
+
+    @Override
+    public String xgroupCreate(String s, String s1, StreamEntryID streamEntryID, boolean b) {
+        return null;
+    }
+
+    @Override
+    public String xgroupSetID(String s, String s1, StreamEntryID streamEntryID) {
+        return null;
+    }
+
+    @Override
+    public long xgroupDestroy(String s, String s1) {
+        return 0;
+    }
+
+    @Override
+    public String xgroupDelConsumer(String s, String s1, String s2) {
+        return null;
+    }
+
+    @Override
+    public List<StreamPendingEntry> xpending(String s, String s1, StreamEntryID streamEntryID, StreamEntryID streamEntryID1, int i, String s2) {
+        return null;
+    }
+
+    @Override
+    public long xdel(String s, StreamEntryID... streamEntryIDS) {
+        return 0;
+    }
+
+    @Override
+    public long xtrim(String s, long l, boolean b) {
+        return 0;
+    }
+
+    @Override
+    public List<StreamEntry> xclaim(String s, String s1, String s2, long l, long l1, int i, boolean b, StreamEntryID... streamEntryIDS) {
+        return null;
+    }
 }
