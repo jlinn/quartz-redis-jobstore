@@ -817,6 +817,15 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
             }
             for (Tuple triggerTuple : jedis.zrangeByScoreWithScores(redisSchema.triggerStateKey(RedisTriggerState.WAITING), 0, (double) (noLaterThan + timeWindow), 0, maxCount)) {
                 OperableTrigger trigger = retrieveTrigger(redisSchema.triggerKey(triggerTuple.getElement()), jedis);
+
+                // Trigger data of a waiting trigger not found -> clean up
+                if (trigger == null) {
+                    jedis.zrem(redisSchema.triggerStateKey(RedisTriggerState.WAITING), triggerTuple.getElement());
+                    jedis.srem(redisSchema.triggersSet(), triggerTuple.getElement());
+                    jedis.del(redisSchema.triggerDataMapHashKey(redisSchema.triggerKey(triggerTuple.getElement())));
+                    continue;
+                }
+
                 if(applyMisfire(trigger, jedis)){
                     if (logger.isDebugEnabled()) {
                         logger.debug("misfired trigger: " + triggerTuple.getElement());
