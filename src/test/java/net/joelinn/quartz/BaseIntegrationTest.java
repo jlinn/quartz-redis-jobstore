@@ -58,7 +58,7 @@ public abstract class BaseIntegrationTest {
         config.setProperty("org.quartz.jobStore.port", String.valueOf(port));
         config.setProperty("org.quartz.threadPool.threadCount", "1");
         config.setProperty("org.quartz.jobStore.misfireThreshold", "500");
-        config.setProperty(StdSchedulerFactory.PROP_SCHED_SKIP_UPDATE_CHECK, "true");
+        // config.setProperty(StdSchedulerFactory.PROP_SCHED_SKIP_UPDATE_CHECK, "true");
         return config;
     }
 

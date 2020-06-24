@@ -807,7 +807,7 @@ public class JedisClusterCommandsWrapper implements JedisCommands {
     }
 
     @Override
-    public String xgroupDelConsumer(String s, String s1, String s2) {
+    public Long xgroupDelConsumer(String s, String s1, String s2) {
         return null;
     }
 
@@ -828,6 +828,46 @@ public class JedisClusterCommandsWrapper implements JedisCommands {
 
     @Override
     public List<StreamEntry> xclaim(String s, String s1, String s2, long l, long l1, int i, boolean b, StreamEntryID... streamEntryIDS) {
+        return null;
+    }
+
+    @Override
+    public Tuple zpopmax(String s) {
+        return null;
+    }
+
+    @Override
+    public Set<Tuple> zpopmax(String s, int i) {
+        return null;
+    }
+
+    @Override
+    public Tuple zpopmin(String s) {
+        return null;
+    }
+
+    @Override
+    public Set<Tuple> zpopmin(String s, int i) {
+        return null;
+    }
+
+    @Override
+    public List<Long> bitfieldReadonly(String s, String... strings) {
+        return null;
+    }
+
+    @Override
+    public StreamInfo xinfoStream(String s) {
+        return null;
+    }
+
+    @Override
+    public List<StreamGroupInfo> xinfoGroup(String s) {
+        return null;
+    }
+
+    @Override
+    public List<StreamConsumersInfo> xinfoConsumers(String s, String s1) {
         return null;
     }
 }
