@@ -139,6 +139,16 @@ public class RedisJobStore implements JobStore {
         this.clusterCheckinInterval = interval;
     }
 
+    @Override
+    public void resetTriggerFromErrorState(TriggerKey triggerKey) throws JobPersistenceException {
+
+    }
+
+    @Override
+    public long getAcquireRetryDelay(int i) {
+        return 100;
+    }
+
     /**
      * Called by the QuartzScheduler before the <code>JobStore</code> is
      * used, in order to give the it a chance to initialize.
