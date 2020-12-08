@@ -326,6 +326,8 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
      * @throws org.quartz.JobPersistenceException if the unset operation failed
      */
     public abstract boolean unsetTriggerState(final String triggerHashKey, T jedis) throws JobPersistenceException;
+    public abstract boolean unsetTriggerState(final String triggerHashKey, RedisTriggerState excludeState, T jedis) throws JobPersistenceException;
+
 
     /**
      * Set a trigger state by adding the trigger to the relevant sorted set, using its next fire time as the score.
@@ -339,8 +341,12 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
     public boolean setTriggerState(final RedisTriggerState state, final double score, final String triggerHashKey, T jedis) throws JobPersistenceException{
         boolean success = false;
         if(state != null){
-            unsetTriggerState(triggerHashKey, jedis);
+            //BUG FIX, delete all the key first, and then add new may leading to lost trigger, if the service restart at that moment 
+            //So we need to add first, and delete later -gs
+            //unsetTriggerState(triggerHashKey, jedis);
             success = jedis.zadd(redisSchema.triggerStateKey(state), score, triggerHashKey) == 1;
+            unsetTriggerState(triggerHashKey, state, jedis);
+
         }
         return success;
     }
