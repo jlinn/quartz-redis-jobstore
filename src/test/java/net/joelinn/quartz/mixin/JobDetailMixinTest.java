@@ -39,8 +39,7 @@ public class JobDetailMixinTest {
                 .build();
 
         String json = mapper.writeValueAsString(testJob);
-        Map<String, Object> jsonMap = mapper.readValue(json, new TypeReference<HashMap<String, String>>() {
-        });
+        Map<String, Object> jsonMap = mapper.readValue(json, new TypeReference<HashMap<String, Object>>() {});
 
         assertThat(jsonMap, hasKey("name"));
         assertEquals(testJob.getKey().getName(), jsonMap.get("name"));
