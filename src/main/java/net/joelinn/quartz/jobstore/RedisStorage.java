@@ -273,6 +273,29 @@ public class RedisStorage extends AbstractRedisStorage<Jedis> {
         return removed;
     }
 
+    @Override
+    public boolean unsetTriggerState(final String triggerHashKey,RedisTriggerState excludeState, Jedis jedis) throws JobPersistenceException {
+        boolean removed = false;
+        Pipeline pipe = jedis.pipelined();
+        List<Response<Long>> responses = new ArrayList<>(RedisTriggerState.values().length);
+        for (RedisTriggerState state : RedisTriggerState.values()) {
+            if (state.name().equalsIgnoreCase(excludeState.name())){
+                continue;
+            }
+            responses.add(pipe.zrem(redisSchema.triggerStateKey(state), triggerHashKey));
+        }
+
+        pipe.sync();
+        for (Response<Long> response : responses) {
+            removed = response.get() == 1;
+            if(removed){
+                jedis.del(redisSchema.triggerLockKey(redisSchema.triggerKey(triggerHashKey)));
+                break;
+            }
+        }
+        return removed;
+    }
+
     /**
      * Store a {@link org.quartz.Calendar}
      * @param name the name of the calendar

@@ -256,6 +256,26 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisClusterComman
         return removed;
     }
 
+    @Override
+    public boolean unsetTriggerState(String triggerHashKey, RedisTriggerState excludeState, JedisClusterCommandsWrapper jedis) throws JobPersistenceException {
+        boolean removed = false;
+        List<Long> responses = new ArrayList<>(RedisTriggerState.values().length);
+        for (RedisTriggerState state : RedisTriggerState.values()) {
+            if (state.name().equalsIgnoreCase(excludeState.name())){
+                continue;
+            }
+            responses.add(jedis.zrem(redisSchema.triggerStateKey(state), triggerHashKey));
+        }
+        for (Long response : responses) {
+            removed = response == 1;
+            if (removed) {
+                jedis.del(redisSchema.triggerLockKey(redisSchema.triggerKey(triggerHashKey)));
+                break;
+            }
+        }
+        return removed;
+    }
+
     /**
      * Store a {@link Calendar}
      *
