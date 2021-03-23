@@ -800,6 +800,17 @@ public class RedisJobStore implements JobStore {
         }, "Could not retrieve trigger state.");
     }
 
+    @Override
+    public void resetTriggerFromErrorState(final TriggerKey triggerKey) throws JobPersistenceException {
+        doWithLock(new LockCallback<Trigger.TriggerState>() {
+            @Override
+            public Trigger.TriggerState doWithLock(JedisCommands jedis) throws JobPersistenceException {
+                storage.resetTriggerFromErrorState(triggerKey, jedis);
+                return null;
+            }
+        }, "Could not retrieve trigger statereset");
+    }
+
     /**
      * Pause the <code>{@link org.quartz.Trigger}</code> with the given key.
      *
@@ -1289,6 +1300,11 @@ public class RedisJobStore implements JobStore {
     @Override
     public void setThreadPoolSize(int poolSize) {
         // nothing to do
+    }
+
+    @Override
+    public long getAcquireRetryDelay(int i) {
+        return 5000;
     }
 
     private Set<HostAndPort> buildNodesSetFromHost() {

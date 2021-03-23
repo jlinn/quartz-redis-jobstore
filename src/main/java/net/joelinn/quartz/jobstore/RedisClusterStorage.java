@@ -14,6 +14,7 @@ import org.quartz.spi.TriggerFiredBundle;
 import org.quartz.spi.TriggerFiredResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import redis.clients.jedis.JedisCluster;
 
 import java.util.*;
 
@@ -410,6 +411,32 @@ public class RedisClusterStorage extends AbstractRedisStorage<JedisClusterComman
             }
         }
         return Trigger.TriggerState.NONE;
+    }
+
+    @Override
+    public void resetTriggerFromErrorState(TriggerKey triggerKey, JedisClusterCommandsWrapper jedis) throws JobPersistenceException {
+        final String triggerHashKey = redisSchema.triggerHashKey(triggerKey);
+        Boolean exists = jedis.exists(triggerHashKey);
+        Double erroredScore = jedis.zscore(redisSchema.triggerStateKey(RedisTriggerState.ERROR), triggerHashKey);
+        String nextFireTimeResponse = jedis.hget(triggerHashKey, TRIGGER_NEXT_FIRE_TIME);
+
+        if(!exists) {
+            return;
+        }
+
+        if(erroredScore != null){
+            // do not reset a non error trigger
+            return;
+        }
+
+        final long nextFireTime = nextFireTimeResponse == null
+                || nextFireTimeResponse.isEmpty() ? -1 : Long.parseLong(nextFireTimeResponse);
+
+        if(getPausedTriggerGroups(jedis).contains(triggerKey.getGroup())) {
+            setTriggerState(RedisTriggerState.PAUSED, (double)nextFireTime, triggerHashKey, jedis);
+        } else {
+            setTriggerState(RedisTriggerState.WAITING, (double)nextFireTime, triggerHashKey, jedis);
+        }
     }
 
     /**

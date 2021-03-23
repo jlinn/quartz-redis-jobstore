@@ -312,9 +312,12 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
         final Set<String> triggerHashKeys = jedis.smembers(jobTriggerSetKey);
         List<OperableTrigger> triggers = new ArrayList<>();
         for (String triggerHashKey : triggerHashKeys) {
-            triggers.add(retrieveTrigger(redisSchema.triggerKey(triggerHashKey), jedis));
+            OperableTrigger trigger = retrieveTrigger(redisSchema.triggerKey(triggerHashKey), jedis);
+            if (trigger != null) {
+                triggers.add(trigger);
+            }
         }
-        return  triggers;
+        return triggers;
     }
 
 
@@ -503,6 +506,8 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
      * @return the state of the trigger
      */
     public abstract Trigger.TriggerState getTriggerState(TriggerKey triggerKey, T jedis);
+
+    public abstract void resetTriggerFromErrorState(TriggerKey triggerKey, T jedis) throws JobPersistenceException;
 
     /**
      * Pause the trigger with the given key
@@ -817,6 +822,15 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
             }
             for (Tuple triggerTuple : jedis.zrangeByScoreWithScores(redisSchema.triggerStateKey(RedisTriggerState.WAITING), 0, (double) (noLaterThan + timeWindow), 0, maxCount)) {
                 OperableTrigger trigger = retrieveTrigger(redisSchema.triggerKey(triggerTuple.getElement()), jedis);
+
+                // Trigger data of a waiting trigger not found -> clean up
+                if (trigger == null) {
+                    jedis.zrem(redisSchema.triggerStateKey(RedisTriggerState.WAITING), triggerTuple.getElement());
+                    jedis.srem(redisSchema.triggersSet(), triggerTuple.getElement());
+                    jedis.del(redisSchema.triggerDataMapHashKey(redisSchema.triggerKey(triggerTuple.getElement())));
+                    continue;
+                }
+
                 if(applyMisfire(trigger, jedis)){
                     if (logger.isDebugEnabled()) {
                         logger.debug("misfired trigger: " + triggerTuple.getElement());

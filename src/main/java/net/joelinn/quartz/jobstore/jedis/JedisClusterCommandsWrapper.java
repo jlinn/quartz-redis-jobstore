@@ -2,10 +2,7 @@ package net.joelinn.quartz.jobstore.jedis;
 
 import redis.clients.jedis.*;
 import redis.clients.jedis.commands.JedisCommands;
-import redis.clients.jedis.params.GeoRadiusParam;
-import redis.clients.jedis.params.SetParams;
-import redis.clients.jedis.params.ZAddParams;
-import redis.clients.jedis.params.ZIncrByParams;
+import redis.clients.jedis.params.*;
 
 import java.util.List;
 import java.util.Map;
@@ -302,8 +299,33 @@ public class JedisClusterCommandsWrapper implements JedisCommands {
     }
 
     @Override
+    public List<String> lpop(String key, int count) {
+        return cluster.lpop(key, count);
+    }
+
+    @Override
+    public Long lpos(String key, String element) {
+        return cluster.lpos(key, element);
+    }
+
+    @Override
+    public Long lpos(String key, String element, LPosParams params) {
+        return cluster.lpos(key, element, params);
+    }
+
+    @Override
+    public List<Long> lpos(String key, String element, LPosParams params, long count) {
+        return cluster.lpos(key, element, params, count);
+    }
+
+    @Override
     public String rpop(String s) {
         return cluster.rpop(s);
+    }
+
+    @Override
+    public List<String> rpop(String key, int count) {
+        return cluster.rpop(key, count);
     }
 
     @Override
@@ -339,6 +361,11 @@ public class JedisClusterCommandsWrapper implements JedisCommands {
     @Override
     public Boolean sismember(String s, String s1) {
         return cluster.sismember(s, s1);
+    }
+
+    @Override
+    public List<Boolean> smismember(String key, String... members) {
+        return null;
     }
 
     @Override
@@ -429,6 +456,11 @@ public class JedisClusterCommandsWrapper implements JedisCommands {
     @Override
     public Double zscore(String s, String s1) {
         return cluster.zscore(s, s1);
+    }
+
+    @Override
+    public List<Double> zmscore(String key, String... members) {
+        return null;
     }
 
     @Override
