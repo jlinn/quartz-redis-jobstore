@@ -436,6 +436,34 @@ public class RedisStorage extends AbstractRedisStorage<Jedis> {
         return Trigger.TriggerState.NONE;
     }
 
+    @Override
+    public void resetTriggerFromErrorState(TriggerKey triggerKey, Jedis jedis) throws JobPersistenceException {
+        final String triggerHashKey = redisSchema.triggerHashKey(triggerKey);
+        Pipeline pipe = jedis.pipelined();
+        Response<Boolean> exists = pipe.exists(triggerHashKey);
+        Response<Double> erroredScore = pipe.zscore(redisSchema.triggerStateKey(RedisTriggerState.ERROR), triggerHashKey);
+        Response<String> nextFireTimeResponse = pipe.hget(triggerHashKey, TRIGGER_NEXT_FIRE_TIME);
+        pipe.sync();
+
+        if(!exists.get()){
+            return;
+        }
+
+        if(erroredScore.get() != null){
+            // do not reset a non error trigger
+            return;
+        }
+
+        final long nextFireTime = nextFireTimeResponse.get() == null
+                || nextFireTimeResponse.get().isEmpty() ? -1 : Long.parseLong(nextFireTimeResponse.get());
+
+        if(getPausedTriggerGroups(jedis).contains(triggerKey.getGroup())) {
+            setTriggerState(RedisTriggerState.PAUSED, (double)nextFireTime, triggerHashKey, jedis);
+        } else {
+            setTriggerState(RedisTriggerState.WAITING, (double)nextFireTime, triggerHashKey, jedis);
+        }
+    }
+
     /**
      * Pause the trigger with the given key
      * @param triggerKey the key of the trigger to be paused

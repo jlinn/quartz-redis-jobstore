@@ -2,10 +2,7 @@ package net.joelinn.quartz.jobstore.jedis;
 
 import redis.clients.jedis.*;
 import redis.clients.jedis.commands.JedisCommands;
-import redis.clients.jedis.params.GeoRadiusParam;
-import redis.clients.jedis.params.SetParams;
-import redis.clients.jedis.params.ZAddParams;
-import redis.clients.jedis.params.ZIncrByParams;
+import redis.clients.jedis.params.*;
 
 import java.util.List;
 import java.util.Map;
@@ -302,8 +299,33 @@ public class JedisClusterCommandsWrapper implements JedisCommands {
     }
 
     @Override
+    public List<String> lpop(String key, int count) {
+        return cluster.lpop(key, count);
+    }
+
+    @Override
+    public Long lpos(String key, String element) {
+        return cluster.lpos(key, element);
+    }
+
+    @Override
+    public Long lpos(String key, String element, LPosParams params) {
+        return cluster.lpos(key, element, params);
+    }
+
+    @Override
+    public List<Long> lpos(String key, String element, LPosParams params, long count) {
+        return cluster.lpos(key, element, params, count);
+    }
+
+    @Override
     public String rpop(String s) {
         return cluster.rpop(s);
+    }
+
+    @Override
+    public List<String> rpop(String key, int count) {
+        return cluster.rpop(key, count);
     }
 
     @Override
@@ -339,6 +361,11 @@ public class JedisClusterCommandsWrapper implements JedisCommands {
     @Override
     public Boolean sismember(String s, String s1) {
         return cluster.sismember(s, s1);
+    }
+
+    @Override
+    public List<Boolean> smismember(String key, String... members) {
+        return null;
     }
 
     @Override
@@ -429,6 +456,11 @@ public class JedisClusterCommandsWrapper implements JedisCommands {
     @Override
     public Double zscore(String s, String s1) {
         return cluster.zscore(s, s1);
+    }
+
+    @Override
+    public List<Double> zmscore(String key, String... members) {
+        return null;
     }
 
     @Override
@@ -759,5 +791,116 @@ public class JedisClusterCommandsWrapper implements JedisCommands {
     @Override
     public Long hstrlen(String s, String s1) {
         return cluster.hstrlen(s, s1);
+    }
+
+
+    @Override
+    public Tuple zpopmax(String key) {
+        return cluster.zpopmax(key);
+    }
+
+    @Override
+    public Set<Tuple> zpopmax(String key, int count) {
+        return cluster.zpopmax(key, count);
+    }
+
+    @Override
+    public Tuple zpopmin(String key) {
+        return cluster.zpopmin(key);
+    }
+
+    @Override
+    public Set<Tuple> zpopmin(String key, int count) {
+        return cluster.zpopmin(key, count);
+    }
+
+    @Override
+    public List<Long> bitfieldReadonly(String key, String... arguments) {
+        return cluster.bitfieldReadonly(key, arguments);
+    }
+
+    @Override
+    public StreamEntryID xadd(String key, StreamEntryID id, Map<String, String> hash) {
+        return cluster.xadd(key, id, hash);
+    }
+
+    @Override
+    public StreamEntryID xadd(String key, StreamEntryID id, Map<String, String> hash, long maxLen, boolean approximateLength) {
+        return cluster.xadd(key, id, hash, maxLen, approximateLength);
+    }
+
+    @Override
+    public Long xlen(String key) {
+        return cluster.xlen(key);
+    }
+
+    @Override
+    public List<StreamEntry> xrange(String key, StreamEntryID start, StreamEntryID end, int count) {
+        return cluster.xrange(key, start, end, count);
+    }
+
+    @Override
+    public List<StreamEntry> xrevrange(String key, StreamEntryID end, StreamEntryID start, int count) {
+        return cluster.xrevrange(key, end, start, count);
+    }
+
+    @Override
+    public long xack(String key, String group, StreamEntryID... ids) {
+        return cluster.xack(key, group, ids);
+    }
+
+    @Override
+    public String xgroupCreate(String key, String groupname, StreamEntryID id, boolean makeStream) {
+        return cluster.xgroupCreate(key, groupname, id, makeStream);
+    }
+
+    @Override
+    public String xgroupSetID(String key, String groupname, StreamEntryID id) {
+        return cluster.xgroupSetID(key, groupname, id);
+    }
+
+    @Override
+    public long xgroupDestroy(String key, String groupname) {
+        return cluster.xgroupDestroy(key, groupname);
+    }
+
+    @Override
+    public Long xgroupDelConsumer(String key, String groupname, String consumername) {
+        return cluster.xgroupDelConsumer(key, groupname, consumername);
+    }
+
+    @Override
+    public List<StreamPendingEntry> xpending(String key, String groupname, StreamEntryID start, StreamEntryID end, int count, String consumername) {
+        return cluster.xpending(key, groupname, start, end, count, consumername);
+    }
+
+    @Override
+    public long xdel(String key, StreamEntryID... ids) {
+        return cluster.xdel(key, ids);
+    }
+
+    @Override
+    public long xtrim(String key, long maxLen, boolean approximate) {
+        return cluster.xtrim(key, maxLen, approximate);
+    }
+
+    @Override
+    public List<StreamEntry> xclaim(String key, String group, String consumername, long minIdleTime, long newIdleTime, int retries, boolean force, StreamEntryID... ids) {
+        return cluster.xclaim(key, group, consumername, minIdleTime, newIdleTime, retries, force, ids);
+    }
+
+    @Override
+    public StreamInfo xinfoStream(String key) {
+        throw new UnsupportedOperationException("xinfoStream not supported.");
+    }
+
+    @Override
+    public List<StreamGroupInfo> xinfoGroup(String key) {
+        throw new UnsupportedOperationException("xinfoGroup not supported.");
+    }
+
+    @Override
+    public List<StreamConsumersInfo> xinfoConsumers(String key, String group) {
+        throw new UnsupportedOperationException("xinfoConsumers not supported");
     }
 }

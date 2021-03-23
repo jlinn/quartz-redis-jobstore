@@ -312,9 +312,12 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
         final Set<String> triggerHashKeys = jedis.smembers(jobTriggerSetKey);
         List<OperableTrigger> triggers = new ArrayList<>();
         for (String triggerHashKey : triggerHashKeys) {
-            triggers.add(retrieveTrigger(redisSchema.triggerKey(triggerHashKey), jedis));
+            OperableTrigger trigger = retrieveTrigger(redisSchema.triggerKey(triggerHashKey), jedis);
+            if (trigger != null) {
+                triggers.add(trigger);
+            }
         }
-        return  triggers;
+        return triggers;
     }
 
 
@@ -503,6 +506,8 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
      * @return the state of the trigger
      */
     public abstract Trigger.TriggerState getTriggerState(TriggerKey triggerKey, T jedis);
+
+    public abstract void resetTriggerFromErrorState(TriggerKey triggerKey, T jedis) throws JobPersistenceException;
 
     /**
      * Pause the trigger with the given key
