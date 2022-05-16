@@ -10,7 +10,7 @@ repositories {
 dependencies {
     implementation("org.quartz-scheduler:quartz:2.3.2")
     implementation("org.quartz-scheduler:quartz-jobs:2.3.2")
-    implementation("redis.clients:jedis:3.5.2")
+    implementation("redis.clients:jedis:4.2.3")
     implementation("com.fasterxml.jackson.core:jackson-core:2.11.1")
     implementation("com.fasterxml.jackson.core:jackson-annotations:2.11.1")
     implementation("com.fasterxml.jackson.core:jackson-databind:2.11.1")
