@@ -140,7 +140,7 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
 
         jobStartWaiter = new Waiter();
         scheduler.scheduleJob(job, trigger);
-        jobStartWaiter.await(1500, TimeUnit.MILLISECONDS);
+        jobStartWaiter.await(3000, TimeUnit.MILLISECONDS);
 
         scheduler.shutdown(false);
         getThreadByName(jobThreadName).interrupt();
@@ -154,7 +154,7 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
         }
 
         scheduler2.start();
-        jobStartWaiter.await(1500, TimeUnit.MILLISECONDS);
+        jobStartWaiter.await(3000, TimeUnit.MILLISECONDS);
 
         getThreadByName(jobThreadName).interrupt();
 
