@@ -11,9 +11,9 @@ import org.quartz.spi.TriggerFiredResult;
 import org.quartz.utils.ClassUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import redis.clients.jedis.Tuple;
 import redis.clients.jedis.commands.JedisCommands;
 import redis.clients.jedis.params.SetParams;
+import redis.clients.jedis.resps.Tuple;
 
 import java.io.IOException;
 import java.util.*;
@@ -420,7 +420,7 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
      * @return the number of jobs currently persisted in the jobstore
      */
     public int getNumberOfJobs(T jedis){
-        return jedis.scard(redisSchema.jobsSet()).intValue();
+        return (int) jedis.scard(redisSchema.jobsSet());
     }
 
     /**
@@ -429,7 +429,7 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
      * @return the number of triggers currently persisted in the jobstore
      */
     public int getNumberOfTriggers(T jedis){
-        return jedis.scard(redisSchema.triggersSet()).intValue();
+        return (int) jedis.scard(redisSchema.triggersSet());
     }
 
     /**
@@ -438,7 +438,7 @@ public abstract class AbstractRedisStorage<T extends JedisCommands> {
      * @return the number of calendars currently persisted in the jobstore
      */
     public int getNumberOfCalendars(T jedis){
-        return jedis.scard(redisSchema.calendarsSet()).intValue();
+        return (int) jedis.scard(redisSchema.calendarsSet());
     }
 
     /**

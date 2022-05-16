@@ -36,7 +36,7 @@ public class SingleThreadedIntegrationTest extends BaseIntegrationTest {
         scheduler.getListenerManager().addTriggerListener(new MisfireListener(waiter), NameMatcher.triggerNameEquals(triggerName));
 
         // wait for MisfireListener.triggerMisfired() to be called
-        waiter.await(2500);
+        waiter.await(3000);
     }
 
 
@@ -52,6 +52,6 @@ public class SingleThreadedIntegrationTest extends BaseIntegrationTest {
 
         scheduler.scheduleJob(jobDetail, trigger);
 
-        waiter.await(2000);
+        waiter.await(3000);
     }
 }

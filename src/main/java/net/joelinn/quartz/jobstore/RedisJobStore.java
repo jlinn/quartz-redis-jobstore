@@ -2,11 +2,11 @@ package net.joelinn.quartz.jobstore;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import net.joelinn.quartz.jobstore.jedis.JedisClusterCommandsWrapper;
 import net.joelinn.quartz.jobstore.mixin.CronTriggerMixin;
 import net.joelinn.quartz.jobstore.mixin.HolidayCalendarMixin;
 import net.joelinn.quartz.jobstore.mixin.JobDetailMixin;
 import net.joelinn.quartz.jobstore.mixin.TriggerMixin;
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.quartz.Calendar;
 import org.quartz.*;
 import org.quartz.impl.calendar.HolidayCalendar;
@@ -30,7 +30,7 @@ public class RedisJobStore implements JobStore {
 
     private Pool<Jedis> jedisPool;
 
-    private JedisClusterCommandsWrapper jedisCluster;
+    private JedisCluster jedisCluster;
 
     /**
      * Redis lock timeout in milliseconds
@@ -124,7 +124,7 @@ public class RedisJobStore implements JobStore {
     }
 
 
-    public RedisJobStore setJedisCluster(JedisClusterCommandsWrapper jedisCluster) {
+    public RedisJobStore setJedisCluster(JedisCluster jedisCluster) {
         this.jedisCluster = jedisCluster;
         return this;
     }
@@ -163,8 +163,8 @@ public class RedisJobStore implements JobStore {
 
         if (redisCluster && jedisCluster == null) {
             Set<HostAndPort> nodes = buildNodesSetFromHost();
-            JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
-            jedisCluster = new JedisClusterCommandsWrapper(new JedisCluster(nodes, this.conTimeout, this.soTimeout, this.conRetries, this.password,jedisPoolConfig));
+            GenericObjectPoolConfig<Connection> jedisPoolConfig = new ConnectionPoolConfig();
+            jedisCluster = new JedisCluster(nodes, this.conTimeout, this.soTimeout, this.conRetries, this.password, jedisPoolConfig);
             storage = new RedisClusterStorage(redisSchema, mapper, signaler, instanceId, lockTimeout);
         } else if (jedisPool == null) {
             JedisPoolConfig jedisPoolConfig = new JedisPoolConfig();
