@@ -40,7 +40,7 @@ public class MultiThreadedIntegrationTest extends BaseIntegrationTest {
         scheduler.getListenerManager().addTriggerListener(new CompleteListener(waiter), NameMatcher.triggerNameEquals(triggerName));
 
         // wait for CompleteListener.triggerComplete() to be called
-        waiter.await(1500);
+        waiter.await(3000);
     }
 
 
@@ -61,14 +61,14 @@ public class MultiThreadedIntegrationTest extends BaseIntegrationTest {
         scheduler.getListenerManager().addTriggerListener(new CompleteListener(waiter), NameMatcher.triggerNameEquals(triggerName));
 
         // wait for CompleteListener.triggerComplete() to be called
-        waiter.await(1500);
+        waiter.await(3000);
 
         try (Jedis jedis = jedisPool.getResource()) {
             assertThat(jedis.get("foo"), equalTo("bar"));
         }
     }
-    
-    
+
+
     @Test
     public void testDisallowConcurrent() throws Exception {
         JobDetail job1 = createJob(SingletonSleepJob.class, "job1", "group1");

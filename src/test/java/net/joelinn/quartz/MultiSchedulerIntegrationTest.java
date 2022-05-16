@@ -94,7 +94,7 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
         scheduler.getListenerManager().addTriggerListener(new CompleteListener(waiter), NameMatcher.triggerNameEquals(triggerName));
         scheduler.scheduleJob(job, trigger);
 
-        waiter.await(3000);
+        waiter.await(5000);
 
         try (Jedis jedis = jedisPool.getResource()) {
             assertThat(jedis.get(KEY_ID), equalTo(scheduler.getSchedulerInstanceId()));
@@ -108,7 +108,7 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
         }
         scheduler2.start();
 
-        waiter.await(3000);
+        waiter.await(5000);
 
         try (Jedis jedis = jedisPool.getResource()) {
             assertThat(jedis.get(KEY_ID), equalTo(scheduler2.getSchedulerInstanceId()));
@@ -140,7 +140,7 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
 
         jobStartWaiter = new Waiter();
         scheduler.scheduleJob(job, trigger);
-        jobStartWaiter.await(1500, TimeUnit.MILLISECONDS);
+        jobStartWaiter.await(3000, TimeUnit.MILLISECONDS);
 
         scheduler.shutdown(false);
         getThreadByName(jobThreadName).interrupt();
@@ -154,7 +154,7 @@ public class MultiSchedulerIntegrationTest extends BaseIntegrationTest {
         }
 
         scheduler2.start();
-        jobStartWaiter.await(1500, TimeUnit.MILLISECONDS);
+        jobStartWaiter.await(3000, TimeUnit.MILLISECONDS);
 
         getThreadByName(jobThreadName).interrupt();
 
