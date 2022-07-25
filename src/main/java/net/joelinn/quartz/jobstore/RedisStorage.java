@@ -707,7 +707,7 @@ public class RedisStorage extends AbstractRedisStorage<Jedis> {
             }
 
             JobDetail job = retrieveJob(trigger.getJobKey(), jedis);
-            TriggerFiredBundle triggerFiredBundle = new TriggerFiredBundle(job, trigger, calendar, false, new Date(), previousFireTime, previousFireTime, nextFireDate);
+            TriggerFiredBundle triggerFiredBundle = new TriggerFiredBundle(job, trigger, calendar, false, new Date(), trigger.getPreviousFireTime(), previousFireTime, nextFireDate);
 
             // handling jobs for which concurrent execution is disallowed
             if (isJobConcurrentExecutionDisallowed(job.getJobClass())){
